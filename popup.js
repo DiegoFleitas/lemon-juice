@@ -70,7 +70,11 @@ function render(r) {
     els.status.textContent = "No hidden content or injection markers found.";
     return;
   }
-  els.status.textContent = `${r.count} finding${r.count === 1 ? "" : "s"} — ${r.bySeverity.high} high, ${r.bySeverity.medium} medium, ${r.bySeverity.low} low`;
+  const parts = [];
+  if (r.bySeverity.high) parts.push(`${r.bySeverity.high} high`);
+  if (r.bySeverity.medium) parts.push(`${r.bySeverity.medium} medium`);
+  if (r.bySeverity.low) parts.push(`${r.bySeverity.low} low`);
+  els.status.textContent = `${r.count} finding${r.count === 1 ? "" : "s"}: ${parts.join(", ")}`;
 
   for (const item of r.items) {
     const row = document.createElement("div");
@@ -118,7 +122,8 @@ function render(r) {
 
 function setBadge(r, tabId) {
   const worst = r && r.worst;
-  const text = r && r.count ? String(r.count) : "";
+  const concerning = r ? r.bySeverity.high + r.bySeverity.medium : 0;
+  const text = concerning ? String(concerning) : "";
   const color = worst === "high" ? "#e5484d" : worst === "medium" ? "#f5a623" : "#3b82f6";
   browser.action.setBadgeText({ text, tabId });
   browser.action.setBadgeBackgroundColor({ color, tabId });

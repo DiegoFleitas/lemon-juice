@@ -99,7 +99,79 @@ async function scrollTo(targetId) {
   }
 }
 
+function typeLabel(item) {
+  return item.type === "unicode-tag"
+    ? `Invisible ASCII-smuggling character${item.decoded ? ` → decodes to: “${item.decoded}”` : ""}`
+    : item.type === "invisible"
+      ? `Invisible character: ${item.name} (${item.hex})`
+      : item.type === "encoded-base64"
+        ? `Encoded blob${item.likelyJwt ? " (looks like a JWT)" : ""} → “${item.decoded}”`
+        : item.type === "encoded-percent"
+          ? `Percent-encoded blob → “${item.decoded}”`
+          : item.type === "encoded-hex-escape"
+            ? `Hex-escaped blob → “${item.decoded}”`
+            : item.type === "encoded-spaced-hex"
+              ? `Space-separated hex byte blob → “${item.decoded}”`
+              : item.type === "variation-selector-smuggling"
+                ? `Hidden variation-selector payload → “${item.decoded}”`
+                : item.type === "sneaky-bits-smuggling"
+                  ? `Hidden invisible-bit-encoded payload → “${item.decoded}”`
+                  : item.type === "control-token"
+                    ? `LLM chat-template control token: “${item.match}”`
+                    : item.type === "css-hidden"
+                      ? `Visually hidden text (${item.reasons.join(", ")})${item.likelyA11y ? " — looks like accessibility markup, downgraded" : ""}`
+                      : item.type === "instruction-phrase"
+                        ? `Instruction-like phrase${item.normalized ? " (revealed after removing invisible characters)" : ""}: “${item.match}”`
+                        : item.type;
+}
+
+function buildRow(item) {
+  const row = document.createElement("div");
+  row.className = "finding sev-" + item.severity;
+  if (item.targetId) row.dataset.targetId = item.targetId;
+  const label = `#${item.index || "?"} ${typeLabel(item)}${item.inComment ? " (in an HTML comment)" : ""}${item.matchCount > 1 ? ` (×${item.matchCount})` : ""}`;
+  const labelEl = document.createElement("div");
+  labelEl.className = "label";
+  labelEl.textContent = label;
+  row.appendChild(labelEl);
+  if (item.context) {
+    const ctxEl = document.createElement("div");
+    ctxEl.className = "ctx";
+    ctxEl.textContent = item.context;
+    row.appendChild(ctxEl);
+  }
+  const ids = item.targetIds?.length
+    ? item.targetIds
+    : item.targetId
+      ? [item.targetId]
+      : [];
+  if (ids.length > 1) {
+    // Cycling only helps if you can see which occurrence you just landed
+    // on. Without this, a second click on the same row looks like it did
+    // nothing.
+    const posEl = document.createElement("div");
+    posEl.className = "cycle-pos";
+    posEl.textContent = `1 of ${ids.length}`;
+    row.appendChild(posEl);
+    row.addEventListener("click", () => {
+      const idx = (clickCycles.get(item.index) || 0) % ids.length;
+      clickCycles.set(item.index, idx + 1);
+      posEl.textContent = `${idx + 1} of ${ids.length}`;
+      scrollTo(ids[idx]);
+    });
+  } else if (ids.length === 1) {
+    row.addEventListener("click", () => scrollTo(ids[0]));
+  }
+  return row;
+}
+
 function render(r) {
+  // Findings are freshly rebuilt on every scan, so any cycling position from
+  // a previous render is stale — a numeric index could otherwise silently
+  // apply to an unrelated item in the new render (indices are per-render
+  // slot numbers, not stable identities), and never clearing this also grew
+  // unboundedly across repeated re-scans.
+  clickCycles.clear();
   if (!r || r.count === 0) {
     els.status.textContent = "No hidden content or injection markers found.";
     return;
@@ -111,57 +183,7 @@ function render(r) {
   els.status.textContent = `${r.count} finding${r.count === 1 ? "" : "s"}: ${parts.join(", ")}`;
 
   for (const item of r.items) {
-    const row = document.createElement("div");
-    row.className = "finding sev-" + item.severity;
-    if (item.targetId) row.dataset.targetId = item.targetId;
-    const label = `#${item.index || "?"} ${
-      item.type === "unicode-tag"
-        ? `Invisible ASCII-smuggling character${item.decoded ? ` → decodes to: “${item.decoded}”` : ""}`
-        : item.type === "invisible"
-          ? `Invisible character: ${item.name} (${item.hex})`
-          : item.type === "encoded-base64"
-            ? `Encoded blob${item.likelyJwt ? " (looks like a JWT)" : ""} → “${item.decoded}”`
-            : item.type === "encoded-percent"
-              ? `Percent-encoded blob → “${item.decoded}”`
-              : item.type === "encoded-hex-escape"
-                ? `Hex-escaped blob → “${item.decoded}”`
-                : item.type === "encoded-spaced-hex"
-                  ? `Space-separated hex byte blob → “${item.decoded}”`
-                  : item.type === "variation-selector-smuggling"
-                    ? `Hidden variation-selector payload → “${item.decoded}”`
-                    : item.type === "sneaky-bits-smuggling"
-                      ? `Hidden invisible-bit-encoded payload → “${item.decoded}”`
-                      : item.type === "control-token"
-                        ? `LLM chat-template control token: “${item.match}”`
-                        : item.type === "css-hidden"
-                          ? `Visually hidden text (${item.reasons.join(", ")})${item.likelyA11y ? " — looks like accessibility markup, downgraded" : ""}`
-                          : item.type === "instruction-phrase"
-                            ? `Instruction-like phrase${item.normalized ? " (revealed after removing invisible characters)" : ""}: “${item.match}”`
-                            : item.type
-    }${item.inComment ? " (in an HTML comment)" : ""}${item.matchCount > 1 ? ` (×${item.matchCount})` : ""}`;
-    const labelEl = document.createElement("div");
-    labelEl.className = "label";
-    labelEl.textContent = label;
-    row.appendChild(labelEl);
-    if (item.context) {
-      const ctxEl = document.createElement("div");
-      ctxEl.className = "ctx";
-      ctxEl.textContent = item.context;
-      row.appendChild(ctxEl);
-    }
-    const ids = item.targetIds?.length
-      ? item.targetIds
-      : item.targetId
-        ? [item.targetId]
-        : [];
-    if (ids.length) {
-      row.addEventListener("click", () => {
-        const idx = (clickCycles.get(item) || 0) % ids.length;
-        clickCycles.set(item, idx + 1);
-        scrollTo(ids[idx]);
-      });
-    }
-    els.list.appendChild(row);
+    els.list.appendChild(buildRow(item));
   }
 }
 

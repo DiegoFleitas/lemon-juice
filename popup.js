@@ -20,7 +20,7 @@ async function scan() {
     return;
   }
   els.status.textContent = "Scanning…";
-  els.list.innerHTML = "";
+  els.list.replaceChildren();
 
   let result;
   try {
@@ -92,7 +92,16 @@ function render(r) {
                         ? `Instruction-like phrase${item.normalized ? " (revealed after removing invisible characters)" : ""}: “${item.match}”`
                         : item.type
     }`;
-    row.innerHTML = `<div class="label">${escapeHtml(label)}</div>${item.context ? `<div class="ctx">${escapeHtml(item.context)}</div>` : ""}`;
+    const labelEl = document.createElement("div");
+    labelEl.className = "label";
+    labelEl.textContent = label;
+    row.appendChild(labelEl);
+    if (item.context) {
+      const ctxEl = document.createElement("div");
+      ctxEl.className = "ctx";
+      ctxEl.textContent = item.context;
+      row.appendChild(ctxEl);
+    }
     if (item.targetId) row.addEventListener("click", () => scrollTo(item.targetId));
     els.list.appendChild(row);
   }
@@ -104,13 +113,6 @@ function setBadge(r, tabId) {
   const color = worst === "high" ? "#e5484d" : worst === "medium" ? "#f5a623" : "#3b82f6";
   browser.action.setBadgeText({ text, tabId });
   browser.action.setBadgeBackgroundColor({ color, tabId });
-}
-
-function escapeHtml(s) {
-  return String(s).replace(
-    /[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]
-  );
 }
 
 els.rescan.addEventListener("click", scan);

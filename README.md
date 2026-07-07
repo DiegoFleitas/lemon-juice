@@ -63,14 +63,14 @@ own eyes over the Devil that everyone else was so sure they saw.
 
 ## What it detects
 
-| Category                         | Examples                                                                                                  | Severity            | OWASP scenario  |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------- | --------------- |
-| **ASCII smuggling**              | Invisible Unicode Tags block (`U+E0000–E007F`) carrying a full hidden ASCII payload; the popup decodes it | High                | #2 Indirect     |
-| **Bidi controls**                | RTL/LTR overrides & isolates that reorder or hide text ("Trojan Source")                                  | High                | #2 Indirect     |
-| **Zero-width & invisible chars** | ZWSP, word joiner, BOM, soft hyphen, etc.                                                                 | Medium/Low          | #2 Indirect     |
-| **Visually hidden text**         | 1px fonts, `opacity:0`, off-screen positioning, text-color-equals-background                              | Medium              | #2 Indirect     |
-| **Encoded blobs**                | Base64 runs that decode to readable text                                                                  | Medium              | #9 Obfuscation  |
-| **Instruction phrases**          | "ignore previous instructions", `system:`, "you are now"                                                  | Low (informational) | #1 Direct-style |
+| Category                         | Examples                                                                                                                                                                                                                                                     | Severity            | OWASP scenario  |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------- | --------------- |
+| **ASCII smuggling**              | Invisible Unicode Tags block (`U+E0000–E007F`) carrying a full hidden ASCII payload; the popup decodes it                                                                                                                                                    | High                | #2 Indirect     |
+| **Bidi controls**                | RTL/LTR overrides & isolates that reorder or hide text ("Trojan Source")                                                                                                                                                                                     | High                | #2 Indirect     |
+| **Zero-width & invisible chars** | ZWSP, word joiner, BOM, soft hyphen, etc.                                                                                                                                                                                                                    | Medium/Low          | #2 Indirect     |
+| **Visually hidden text**         | 1px fonts, `opacity:0`, off-screen positioning, text-color-equals-background                                                                                                                                                                                 | Medium              | #2 Indirect     |
+| **Encoded blobs**                | Base64 runs that decode to readable text                                                                                                                                                                                                                     | Medium              | #9 Obfuscation  |
+| **Instruction phrases**          | "ignore previous instructions", `system:`, "you are now" — including obfuscations: leetspeak, math-bold/fullwidth/fraktur/script/monospace/sans-serif text, spaced letters, pipe-delimiters, 🚫-for-ignore substitution, emoji regional-indicator homoglyphs | Low (informational) | #1 Direct-style |
 
 Severity reflects _how likely a pattern is to be an attack vs. a legitimate
 feature_. Bidi overrides and the Tags block are essentially never innocent in web
@@ -154,18 +154,26 @@ detection logic tests in Node with no DOM harness. Add cases to
 
 Things the scanner will **miss**:
 
-- **Payload splitting**: instructions spread across multiple DOM nodes and
-  reassembled by the model (OWASP #6). No cross-node reassembly yet.
-- **Adversarial suffixes**: high-entropy gibberish triggers (OWASP #8). It's a
-  false-positive minefield; out of scope.
-- **Multimodal / image-based payloads** (OWASP #7). A text DOM scanner cannot
-  see instructions hidden in images.
-- **Server-side, URL-fragment, and dynamically-fetched content** the model may
-  receive but isn't in the rendered DOM at scan time.
+- **Payload splitting**: instructions across multiple DOM nodes (OWASP #6).
+- **Adversarial suffixes**: high-entropy gibberish triggers (OWASP #8).
+- **Multimodal / image-based payloads** (OWASP #7).
+- **Server-side, URL-fragment, and dynamically-fetched content** not in the
+  rendered DOM at scan time.
+- **Any visible character breaking word boundaries** — emoji, symbols, or
+  punctuation between words in an instruction phrase ("ignore 🔒 all previous
+  instructions"). Only 🚫 substituting for "ignore"/"disregard" is individually
+  patterned; other negation symbols (⛔, ❌, 🙅, etc.) are not.
+- **Unicode homoglyph blocks not yet normalized** — double-struck, circled,
+  parenthesized, superscript/subscript, small caps, and other decorative letter
+  forms pass through undetected.
+- **Emoji-only instructions**: pictograph sequences conveying a message
+  visually (e.g. 👁‍🗨🚫📋↔🗑) are invisible to text-pattern scanning.
+- **Compound obfuscation**: multiple obfuscation layers applied together can
+  push normalized text beyond what the deobfuscation pipeline reconstructs.
 
-You'll also get **false positives** from legitimate zero-width joiners in some
-scripts, `.sr-only` accessibility text, and any article discussing prompt
-injection.
+You'll also get **false positives** from legitimate zero-width joiners in
+Arabic/Indic scripts, `.sr-only` accessibility text, and any article discussing
+prompt injection (including this README).
 
 ## Roadmap
 

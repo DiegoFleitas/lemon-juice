@@ -306,6 +306,8 @@
     /\bas\s+an?\s+ethical\s+(?:hacker|researcher|pentester)\b/i,
     // Imperative "give/tell/show me the system prompt" — no "your" required
     /\b(give|tell|show|send|reveal|provide)\s+(?:me\s+)?(?:the\s+)?(?:your\s+)?system\s+prompt\b/i,
+    // Emoji substituting for negation words — 🚫 (no entry) in place of "ignore/disregard"
+    /🚫\s+(?:all\s+)?(?:previous|prior|above)\s+(?:instructions?|prompts?|context)\b/i,
   ];
 
   // Spaced-letter instruction patterns — match text where each character is
@@ -532,6 +534,9 @@
     if (cp >= 0x1d68a && cp <= 0x1d6a3) return cp - 0x1d68a + 0x61; // Monospace Lower
     if (cp >= 0xff21 && cp <= 0xff3a) return cp - 0xff21 + 0x41; // Fullwidth Caps
     if (cp >= 0xff41 && cp <= 0xff5a) return cp - 0xff41 + 0x61; // Fullwidth Lower
+    // Regional Indicator Symbols (U+1F1E6–U+1F1FF) — used in flag emoji but also a
+    // homoglyph vector: they visually spell out ASCII text like IGNORE ALL PREVIOUS.
+    if (cp >= 0x1f1e6 && cp <= 0x1f1ff) return cp - 0x1f1e6 + 0x41; // RIS A–Z → A–Z
     return -1;
   }
 

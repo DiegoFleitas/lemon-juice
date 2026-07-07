@@ -13,6 +13,7 @@ const browserExtensionGlobals = {
   CSS: "readonly",
   Node: "readonly",
   NodeFilter: "readonly",
+  ShadowRoot: "readonly",
   atob: "readonly",
   TextDecoder: "readonly",
   module: "writable",

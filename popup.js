@@ -53,7 +53,12 @@ async function scrollTo(targetId) {
   await browser.scripting.executeScript({
     target: { tabId: tab.id },
     func: (id) => {
-      const el = document.querySelector(`[data-piscan-id="${CSS.escape(id)}"]`);
+      const helpers = window.__PIScannerHelpers;
+      if (!helpers) return;
+      const el = helpers.deepQuerySelector(
+        document,
+        `[data-piscan-id="${CSS.escape(id)}"]`
+      );
       if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
     },
     args: [targetId],

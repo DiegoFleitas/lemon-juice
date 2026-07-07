@@ -255,6 +255,43 @@
     return findings;
   }
 
+  // --- 2c. Space-separated hex byte smuggling ---------------------------------
+  // Distinct from \xXX escapes above: raw hex byte pairs separated by
+  // whitespace with no \x prefix at all, e.g. "49 67 6e 6f 72 65" == "Ignore".
+  // Same decode-then-verify-printability gate as the other encoded-blob
+  // detectors — this is what keeps ordinary space-separated numbers (phone
+  // numbers, IDs, version strings) from false-positiving: interpreted as hex
+  // bytes they decode to mostly non-printable garbage that looksLikeText
+  // rejects, whereas an actual smuggled ASCII payload decodes clean.
+  const SPACED_HEX_RUN = /\b(?:[0-9A-Fa-f]{2}\s+){5,}[0-9A-Fa-f]{2}\b/g;
+
+  function decodeSpacedHex(s) {
+    return s
+      .trim()
+      .split(/\s+/)
+      .map((h) => String.fromCharCode(parseInt(h, 16)))
+      .join("");
+  }
+
+  function scanSpacedHex(text) {
+    const findings = [];
+    let m;
+    while ((m = SPACED_HEX_RUN.exec(text)) !== null) {
+      const blob = m[0];
+      const decoded = decodeSpacedHex(blob);
+      if (looksLikeText(decoded)) {
+        findings.push({
+          type: "encoded-spaced-hex",
+          severity: SEVERITY.MEDIUM,
+          index: m.index,
+          sample: blob.slice(0, 32) + (blob.length > 32 ? "…" : ""),
+          decoded: decoded.slice(0, 120),
+        });
+      }
+    }
+    return findings;
+  }
+
   // --- 3. Instruction-phrase heuristic (OWASP scenario #1) -------------------
   // Deliberately INFORMATIONAL only (never bumps overall severity to HIGH on
   // its own) because it false-positives on any page discussing prompt
@@ -308,6 +345,15 @@
     /\b(give|tell|show|send|reveal|provide)\s+(?:me\s+)?(?:the\s+)?(?:your\s+)?system\s+prompt\b/i,
     // Emoji substituting for negation words — 🚫 (no entry) in place of "ignore/disregard"
     /🚫\s+(?:all\s+)?(?:previous|prior|above)\s+(?:instructions?|prompts?|context)\b/i,
+
+    // --- System-prompt extraction probes ---
+    // Asking the assistant to reproduce or re-encode its own instructions,
+    // rather than override them outright — a softer extraction angle that
+    // the override/reveal patterns above don't cover (no "system prompt" /
+    // "instructions" possessive phrasing required).
+    /\brepeat\s+(?:the\s+)?(?:text|words?)\s+above\s+verbatim\b/i,
+    /\bprint\s+your\s+(?:initial\s+)?instructions?\s+word\s+for\s+word\b/i,
+    /\bencode\s+your\s+(?:instructions?|system\s+prompt)\s+(?:in|as)\s+base\s*64\b/i,
   ];
 
   // Spaced-letter instruction patterns — match text where each character is
@@ -474,6 +520,43 @@
     return findings;
   }
 
+  // --- 6. LLM chat-template control-token smuggling --------------------------
+  // Literal delimiter tokens LLM serving frameworks use to mark turn/role
+  // boundaries: ChatML's <|im_start|>/<|im_end|>, Llama's [INST]/[/INST], a
+  // generic </system> closer, and a plain-text prompt-boundary marker. If a
+  // page contains one of these verbatim, a model that later ingests the
+  // page's text risks parsing it as an actual turn boundary rather than as
+  // data — a more literal, higher-confidence sibling of the instruction-phrase
+  // heuristic below. Essentially never legitimate in ordinary web copy
+  // (unlike bare "system:"/"assistant:", which do show up in transcripts and
+  // are handled as LOW-severity instruction phrases instead), so HIGH like
+  // the Tags block and bidi controls.
+  const CONTROL_TOKENS = [
+    /<\|im_start\|>/i,
+    /<\|im_end\|>/i,
+    /<\/system>/i,
+    /\[INST\]/i,
+    /\[\/INST\]/i,
+    /---\s*END OF PROMPT\s*---/i,
+  ];
+
+  function scanControlTokens(text) {
+    const findings = [];
+    for (const re of CONTROL_TOKENS) {
+      const m = re.exec(text);
+      if (m) {
+        findings.push({
+          type: "control-token",
+          severity: SEVERITY.HIGH,
+          index: m.index,
+          match: m[0].slice(0, 80),
+          pattern: re.source, // internal: cross-pass dedup key, not for display
+        });
+      }
+    }
+    return findings;
+  }
+
   // --- Normalization for the encoded/instruction re-scan pass ---------------
   // Attackers can interrupt a base64 run or an instruction phrase with
   // zero-width/invisible characters (or Tags-block chars) to dodge the regexes
@@ -507,7 +590,8 @@
   // decoded payload (stable even though `sample`/`index` differ pre/post
   // strip).
   function contentFindingKey(f) {
-    if (f.type === "instruction-phrase") return `${f.type}:${f.pattern}`;
+    if (f.type === "instruction-phrase" || f.type === "control-token")
+      return `${f.type}:${f.pattern}`;
     return `${f.type}:${f.decoded}`;
   }
 
@@ -599,6 +683,8 @@
       ...scanEncoded(text),
       ...scanPercentEncoded(text),
       ...scanHexEscape(text),
+      ...scanSpacedHex(text),
+      ...scanControlTokens(text),
       ...scanInstructions(text),
     ];
 
@@ -610,6 +696,8 @@
         ...scanEncoded(normalizedText),
         ...scanPercentEncoded(normalizedText),
         ...scanHexEscape(normalizedText),
+        ...scanSpacedHex(normalizedText),
+        ...scanControlTokens(normalizedText),
         ...scanInstructions(normalizedText),
       ];
       normalizedOnly = rescanned
@@ -692,6 +780,8 @@
     scanEncoded,
     scanPercentEncoded,
     scanHexEscape,
+    scanSpacedHex,
+    scanControlTokens,
     scanInstructions,
     scanVariationSelectors,
     scanSneakyBits,

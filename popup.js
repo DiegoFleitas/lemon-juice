@@ -87,16 +87,20 @@ function render(r) {
               ? `Percent-encoded blob → “${item.decoded}”`
               : item.type === "encoded-hex-escape"
                 ? `Hex-escaped blob → “${item.decoded}”`
-                : item.type === "variation-selector-smuggling"
-                  ? `Hidden variation-selector payload → “${item.decoded}”`
-                  : item.type === "sneaky-bits-smuggling"
-                    ? `Hidden invisible-bit-encoded payload → “${item.decoded}”`
-                    : item.type === "css-hidden"
-                      ? `Visually hidden text (${item.reasons.join(", ")})`
-                      : item.type === "instruction-phrase"
-                        ? `Instruction-like phrase${item.normalized ? " (revealed after removing invisible characters)" : ""}: “${item.match}”`
-                        : item.type
-    }`;
+                : item.type === "encoded-spaced-hex"
+                  ? `Space-separated hex byte blob → “${item.decoded}”`
+                  : item.type === "variation-selector-smuggling"
+                    ? `Hidden variation-selector payload → “${item.decoded}”`
+                    : item.type === "sneaky-bits-smuggling"
+                      ? `Hidden invisible-bit-encoded payload → “${item.decoded}”`
+                      : item.type === "control-token"
+                        ? `LLM chat-template control token: “${item.match}”`
+                        : item.type === "css-hidden"
+                          ? `Visually hidden text (${item.reasons.join(", ")})`
+                          : item.type === "instruction-phrase"
+                            ? `Instruction-like phrase${item.normalized ? " (revealed after removing invisible characters)" : ""}: “${item.match}”`
+                            : item.type
+    }${item.inComment ? " (in an HTML comment)" : ""}`;
     const labelEl = document.createElement("div");
     labelEl.className = "label";
     labelEl.textContent = label;

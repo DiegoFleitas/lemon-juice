@@ -87,9 +87,14 @@
       // ownerDocument (a plain Document's ownerDocument is always null,
       // hence the `|| root` fallback) — and root itself as the walker's
       // root node, since `scope` for a ShadowRoot is the root itself.
+      // SHOW_COMMENT alongside SHOW_TEXT: an injected instruction hidden in
+      // an HTML comment (`<!-- ignore all previous instructions -->`) never
+      // renders, but an LLM ingesting the page's raw HTML/DOM still sees it —
+      // Comment nodes expose the same `.nodeValue`/`.parentElement` shape as
+      // Text nodes, so the rest of this loop handles both without change.
       const walker = (root.ownerDocument || root).createTreeWalker(
         scope,
-        NodeFilter.SHOW_TEXT,
+        NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT,
         {
           acceptNode(node) {
             if (!node.nodeValue || !node.nodeValue.trim())
@@ -112,11 +117,13 @@
           highlightElement(el, colorFor(worst), worst);
           makeHighlightVisible(el);
         }
+        const inComment = node.nodeType === Node.COMMENT_NODE;
         for (const f of findings)
           items.push({
             ...f,
             context: snippet(node.nodeValue),
             targetId: node.parentElement?.dataset.piscanId,
+            ...(inComment ? { inComment: true } : {}),
           });
       }
 

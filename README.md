@@ -47,6 +47,12 @@ aims to be a well-scoped, **honestly-described** scanner for the whole
 hidden-text surface, not another "5 stars, 12 users, no idea if it works"
 listing.
 
+**Why Firefox first?** I use Firefox day to day and wanted this tool there.
+If you're pointing a browser agent or automation pipeline at untrusted pages,
+Chrome is worth a look too: automation-protocol tooling for it is far more
+mature, and most agent frameworks target it first. A Chrome port is on the
+[roadmap](#roadmap).
+
 ## Why "Lemon Juice"?
 
 In _The Name of the Rose_, a monk hides a deadly secret by writing it on a
@@ -72,7 +78,7 @@ own eyes over the Devil that everyone else was so sure they saw.
 | **Zero-width & invisible chars** | ZWSP, word joiner, BOM, soft hyphen, etc.                                                                                                                                                                                                                    | Medium/Low          | #2 Indirect     |
 | **Visually hidden text**         | 1px fonts, `opacity:0`, off-screen positioning, text-color-equals-background                                                                                                                                                                                 | Medium              | #2 Indirect     |
 | **Encoded blobs**                | Base64 runs that decode to readable text                                                                                                                                                                                                                     | Medium              | #9 Obfuscation  |
-| **Instruction phrases**          | "ignore previous instructions", `system:`, "you are now" — including obfuscations: leetspeak, math-bold/fullwidth/fraktur/script/monospace/sans-serif text, spaced letters, pipe-delimiters, 🚫-for-ignore substitution, emoji regional-indicator homoglyphs | Low (informational) | #1 Direct-style |
+| **Instruction phrases**          | "ignore previous instructions", `system:`, "you are now", including obfuscations: leetspeak, math-bold/fullwidth/fraktur/script/monospace/sans-serif text, spaced letters, pipe-delimiters, 🚫-for-ignore substitution, emoji regional-indicator homoglyphs | Low (informational) | #1 Direct-style |
 
 Severity reflects _how likely a pattern is to be an attack vs. a legitimate
 feature_. Bidi overrides and the Tags block are essentially never innocent in web
@@ -96,6 +102,24 @@ So the honest scope is: **reveal what an AI would ingest but you can't see.**
 Detection is not interception. This tool does not protect an autonomous agent that
 acts without you looking. For that, the defenses have to live inside the
 assistant/agent itself, which every major vendor concedes is not fully solvable.
+
+This also means **Lemon Juice only helps when a human is watching**: it runs
+on click, so it never sits inside an agent's own browsing loop.
+
+For unattended agents, the defense has to live in the agent itself.
+[Claude for Chrome](https://www.anthropic.com/research/prompt-injection-defenses)
+is one example: it classifies prompt injection hidden in text, images, and
+deceptive UI, and Anthropic's own
+[guidance for using it](https://support.claude.com/en/articles/12902428-use-claude-in-chrome-safely)
+layers on permission prompts, human-in-the-loop review, minimal site access,
+and keeping agents out of banking/email sessions.
+
+None of it is bulletproof. ShadowPrompt, a browser-extension messaging bug,
+let attackers inject prompts directly and sidestep those defenses entirely
+before Anthropic patched it. No vendor claims prompt injection is solved.
+
+**Treat Lemon Juice as a supplement for when you're reading, not a safety net
+for when you're not.**
 
 ## Install
 
@@ -161,7 +185,7 @@ Things the scanner will **miss**:
 - **Multimodal / image-based payloads** (OWASP #7).
 - **Server-side, URL-fragment, and dynamically-fetched content** not in the
   rendered DOM at scan time.
-- **Any visible character breaking word boundaries** — emoji, symbols, or
+- **Any visible character breaking word boundaries**: emoji, symbols, or
   punctuation between words in an instruction phrase ("ignore 🔒 all previous
   instructions"). Only 🚫 substituting for "ignore"/"disregard" is individually
   patterned; other negation symbols (⛔, ❌, 🙅, etc.) are not.

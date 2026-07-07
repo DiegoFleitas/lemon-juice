@@ -184,6 +184,15 @@ harness. Add cases to `__tests__/detectors.test.js` when you add a detector,
 `__tests__/scan-helpers.test.js` for helper changes, and `__tests__/e2e/` +
 `__tests__/fixtures/` when the behavior needs a real page to exercise.
 
+## Test resources
+
+Pages you can point the scanner at to exercise detection:
+
+- [PayloadsAllTheThings — Prompt Injection tools](https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Prompt%20Injection#tools) — curated injection payloads and tools
+- [Prompt-Injection-Everywhere](https://github.com/TakSec/Prompt-Injection-Everywhere) — real-world prompt injection examples from a bug bounty researcher
+
+Both contain instruction-phrase matches and encoded obfuscation that Lemon Juice's informational detectors will flag. They also serve as honest test cases for the scanner's limitations (payload splitting, visible-character obfuscation).
+
 ## Architecture
 
 | File                      | Role                                                                                                                                                                                                                           |

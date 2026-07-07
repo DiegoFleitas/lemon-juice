@@ -54,19 +54,49 @@ async function scan() {
 
 async function scrollTo(targetId) {
   const tab = await activeTab();
-  await browser.scripting.executeScript({
-    target: { tabId: tab.id },
-    func: (id) => {
-      const helpers = window.__PIScannerHelpers;
-      if (!helpers) return;
-      const el = helpers.deepQuerySelector(
-        document,
-        `[data-piscan-id="${CSS.escape(id)}"]`
-      );
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-    },
-    args: [targetId],
-  });
+  if (!tab) return;
+  try {
+    await browser.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: (id) => {
+        // Search the top document, open shadow roots, and same-origin
+        // iframes for a matching data-piscan-id — copies the logic from
+        // scan-helpers.js's deepQuerySelector inline rather than relying
+        // on globalThis.__PIScannerHelpers, because executeScript func
+        // runs in a separate execution environment from file injections.
+        function find(root) {
+          let found = root.querySelector(`[data-piscan-id="${CSS.escape(id)}"]`);
+          if (found) return found;
+          const scope = root.nodeType === Node.DOCUMENT_NODE ? root.body : root;
+          if (!scope) return null;
+          const children = scope.querySelectorAll("*");
+          for (let i = 0; i < children.length; i++) {
+            const el = children[i];
+            if (el.shadowRoot) {
+              found = find(el.shadowRoot);
+              if (found) return found;
+            }
+            if (el.tagName === "IFRAME") {
+              try {
+                if (el.contentDocument && el.contentDocument.body) {
+                  found = find(el.contentDocument);
+                  if (found) return found;
+                }
+              } catch {
+                // cross-origin — skip
+              }
+            }
+          }
+          return null;
+        }
+        const el = find(document);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      },
+      args: [targetId],
+    });
+  } catch {
+    // tab closed or navigated mid-scroll
+  }
 }
 
 function render(r) {

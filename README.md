@@ -11,6 +11,7 @@ _The lemon is green while this is alpha. It ripens to yellow at 1.0._
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](https://www.gnu.org/licenses/gpl-3.0.html)
 ![Firefox 115+](https://img.shields.io/badge/firefox-115%2B-orange)
 ![Manifest V3](https://img.shields.io/badge/manifest-v3-yellow)
+![Status: Alpha](https://img.shields.io/badge/status-alpha-orange)
 
 </div>
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.1.3 - 2026-07-07
+
+- fix(popup): avoid unsafe innerHTML assignment in render() (b70ab42)
+- fix(manifest): declare no data collection for AMO validation (a23904a)
+
 ## v0.1.2 - 2026-07-07
 
 - docs: align descriptions across manifest.json, package.json, and GitHub (9cab034)

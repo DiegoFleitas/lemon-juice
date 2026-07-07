@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.4 - 2026-07-07
+
+- docs: add missing GPL-3.0 LICENSE file (fa5c4a2)
+
 ## v0.1.3 - 2026-07-07
 
 - fix(popup): avoid unsafe innerHTML assignment in render() (b70ab42)

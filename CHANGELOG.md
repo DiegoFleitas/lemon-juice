@@ -24,4 +24,3 @@
 - feat(detectors): detect 'give me the system prompt' injection variant (342dffc)
 - fix(readme): replace paraphrased epigraph with actual film quote (1e9550d)
 - chore: initial commit (abc9f4e)
-

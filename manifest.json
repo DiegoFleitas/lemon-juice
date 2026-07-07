@@ -12,10 +12,7 @@
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
   },
-  "permissions": [
-    "activeTab",
-    "scripting"
-  ],
+  "permissions": ["activeTab", "scripting"],
   "action": {
     "default_title": "Lemon Juice — reveal hidden text on this page",
     "default_popup": "popup.html"

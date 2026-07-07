@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.1.5 - 2026-07-07
+
+- docs(plans): add false-positive-fatigue mitigation plan (2cddc4c)
+- test(scan): cover decoration nodes not being re-marked (af9306b)
+- fix(scan): don't re-scan injected highlight decorations (07f28e2)
+- feat(scan,popup): fold 5+ near-duplicate findings into one row (a42ed30)
+- feat(popup): show which occurrence a repeated finding scrolled to (d7c02eb)
+- fix(popup): keep scrollTo's DOM traversal self-contained (1a821fa)
+- fix(scan): dedup repeated findings and downgrade a11y-marked CSS-hidden severity (2fcb5f9)
+- fix(popup): suppress zero counts in status line, badge shows actionable count only (d8a2d30)
+- docs: document control-token, spaced-hex, and comment-node scanning (1354d5e)
+- test(detectors): cover control-token, spaced-hex, and comment scanning (26b7f47)
+- feat(detectors): add control-token, spaced-hex, and comment-node detection (53aa6c6)
+- docs: update architecture docs for shadow/iframe scanning (1766627)
+- test(scan): add e2e fixtures and tests for shadow/iframe traversal (dbf98c8)
+- feat(scan): traverse open shadow roots and same-origin iframes (65466fc)
+
 ## v0.1.4 - 2026-07-07
 
 - docs: add missing GPL-3.0 LICENSE file (fa5c4a2)

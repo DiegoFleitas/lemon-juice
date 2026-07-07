@@ -22,16 +22,27 @@ async function scan() {
   els.status.textContent = "Scanning…";
   els.list.innerHTML = "";
 
-  // 1) Inject the pure detectors, then helpers, then the DOM scanner (order matters).
-  await browser.scripting.executeScript({
-    target: { tabId: tab.id },
-    files: ["detectors.js", "scan-helpers.js", "scan.js"],
-  });
-  // 2) Read back the summary the scanner stashed on window.
-  const [{ result }] = await browser.scripting.executeScript({
-    target: { tabId: tab.id },
-    func: () => window.__PIScanResult || null,
-  });
+  let result;
+  try {
+    // 1) Inject the pure detectors, then helpers, then the DOM scanner (order matters).
+    await browser.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ["detectors.js", "scan-helpers.js", "scan.js"],
+    });
+    // 2) Read back the summary the scanner stashed on window.
+    const injected = await browser.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => window.__PIScanResult || null,
+    });
+    result = injected[0]?.result;
+  } catch {
+    // Injection can reject if the tab closed mid-scan, navigated away, or the
+    // page/CSP blocks content scripts (e.g. addons.mozilla.org, some PDF
+    // viewers) — none of that is this extension's fault, so just say so
+    // instead of leaving "Scanning…" stuck with an unhandled rejection.
+    els.status.textContent = "Can't scan this page.";
+    return;
+  }
 
   render(result);
   setBadge(result, tab.id);

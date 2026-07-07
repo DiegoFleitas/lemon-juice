@@ -9,8 +9,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const zlib = require("node:zlib");
 
-const LEMON = [244, 220, 70];
-const LEMON_SHADE = [205, 178, 45];
+const LEMON = [173, 201, 68];
+const LEMON_SHADE = [138, 163, 48];
 const LEAF = [93, 156, 68];
 
 function smoothstep(edge0, edge1, x) {

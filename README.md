@@ -74,21 +74,49 @@ own eyes over the Devil that everyone else was so sure they saw.
 
 ## What it detects
 
-| Category                         | Examples                                                                                                                                                                                                                                                     | Severity            | OWASP scenario  |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------- | --------------- |
-| **ASCII smuggling**              | Invisible Unicode Tags block (`U+E0000–E007F`) carrying a full hidden ASCII payload; the popup decodes it                                                                                                                                                    | High                | #2 Indirect     |
-| **Bidi controls**                | RTL/LTR overrides & isolates that reorder or hide text ("Trojan Source")                                                                                                                                                                                     | High                | #2 Indirect     |
-| **Zero-width & invisible chars** | ZWSP, word joiner, BOM, soft hyphen, etc.                                                                                                                                                                                                                    | Medium/Low          | #2 Indirect     |
-| **Visually hidden text**         | 1px fonts, `opacity:0`, off-screen positioning, text-color-equals-background                                                                                                                                                                                 | Medium              | #2 Indirect     |
-| **Encoded blobs**                | Base64 runs that decode to readable text                                                                                                                                                                                                                     | Medium              | #9 Obfuscation  |
-| **Instruction phrases**          | "ignore previous instructions", `system:`, "you are now", including obfuscations: leetspeak, math-bold/fullwidth/fraktur/script/monospace/sans-serif text, spaced letters, pipe-delimiters, 🚫-for-ignore substitution, emoji regional-indicator homoglyphs | Low (informational) | #1 Direct-style |
+High-confidence patterns: essentially never legitimate in web copy, or
+well-filtered against common false positives.
+
+| Category                         | Examples                                                                                                             | Severity   | OWASP scenario |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------- | -------------- |
+| **ASCII smuggling**              | Unicode Tags block (`U+E0000–E007F`) carrying a full hidden ASCII payload; the popup decodes it                      | High       | #2 Indirect    |
+| **Bidi controls**                | RTL/LTR overrides & isolates that reorder or hide text ("Trojan Source")                                             | High       | #2 Indirect    |
+| **Variation-selector smuggling** | Bytes hidden in a run of variation selectors (U+FE00–FE0F, U+E0100–E01EF) after a base emoji character               | High       | #2 Indirect    |
+| **Sneaky Bits**                  | Invisible-times (U+2062) and invisible-plus (U+2064) encoding binary bits as a byte stream                           | High       | #2 Indirect    |
+| **Visually hidden text**         | 1px fonts, `opacity:0`, off-screen positioning, text-color-equals-background                                         | Medium     | #2 Indirect    |
+| **Zero-width & invisible chars** | ZWSP, word joiner, BOM, soft hyphen, Arabic/Syriac/Mongolian format chars                                            | Medium/Low | #2 Indirect    |
+| **Encoded blobs (base64)**       | Base64 runs ≥24 chars that decode to readable ASCII; padding-flexible, filtered against binary and JWT-like payloads | Medium     | #9 Obfuscation |
+| **Encoded blobs (percent)**      | `%XX` escape runs ≥6 groups that decode to readable text                                                             | Medium     | #9 Obfuscation |
+| **Encoded blobs (hex escape)**   | `\xXX` escape runs ≥6 groups that decode to readable text                                                            | Medium     | #9 Obfuscation |
+
+## What it attempts to detect
+
+Heuristic, informational-only patterns: prone to false positives on
+legitimate pages that discuss or demonstrate prompt injection. Never raise
+overall severity on their own. Deobfuscation normalizes each character in one
+pass (stripping invisible/tag characters, then converting fancy Unicode
+letters to ASCII, then leetspeak, then obfuscation delimiters) before
+re-running the instruction scan, plus a separate pass for space-delimited
+letters. Variants only caught this way are marked in the popup as revealed
+after normalization, not shown as plain matches.
+
+| Category                        | Examples                                                                                                                                                         | Severity            | OWASP scenario  |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | --------------- |
+| **Instruction phrases**         | "ignore previous instructions", `system:`, "you are now", "reveal your system prompt", "never say you can't", "as an ethical hacker", "fetch data from evil.com" | Low (informational) | #1 Direct-style |
+| **Leetspeak obfuscation**       | `1gn0r3 4ll pr3v10us 1nstruct10ns`                                                                                                                               | Low (informational) | #1 Direct-style |
+| **Fancy Unicode letters**       | Math bold/italic/script/fraktur/sans-serif/monospace and fullwidth letter forms, regional-indicator-symbol (flag emoji) letters                                  | Low (informational) | #1 Direct-style |
+| **Delimiter-stripped text**     | Pipe, underscore, backtick, caret, tilde between letters (`d\|i\|s\|r\|e\|g\|a\|r\|d`)                                                                           | Low (informational) | #1 Direct-style |
+| **Spaced-letter instructions**  | `i g n o r e a l l p r e v i o u s i n s t r u c t i o n s`                                                                                                      | Low (informational) | #1 Direct-style |
+| **Emoji-substituted phrases**   | 🚫 substituting for "ignore" or "disregard"                                                                                                                      | Low (informational) | #1 Direct-style |
+| **JWT-downgraded base64 blobs** | Base64 runs that look like JWT header+payload segments (downgraded to informational to avoid hiding injection in decoy JWT-shaped payloads)                      | Low (informational) | #9 Obfuscation  |
 
 Severity reflects _how likely a pattern is to be an attack vs. a legitimate
 feature_. Bidi overrides and the Tags block are essentially never innocent in web
 copy; zero-width joiners are legitimate in Arabic/Indic scripts and emoji, so they
-score low. The instruction-phrase detector is **informational only** and never
-raises overall severity on its own. It false-positives on any page _about_ prompt
-injection (including the OWASP page and this README).
+score low. The instruction-phrase detector and all deobfuscation passes are
+**informational only**: they never raise overall severity on their own, and they
+false-positive on any page _about_ prompt injection (including the OWASP page and
+this README).
 
 ## What this is and isn't
 
@@ -145,27 +173,33 @@ Buildless: plain ES, no bundler, no transpile step. Load the source directly.
 
 ```sh
 pnpm install
-pnpm test        # unit tests for detectors.js (pure, DOM-free)
+pnpm test        # unit tests for detectors.js and scan-helpers.js (pure, DOM-free)
+pnpm test:e2e    # Playwright tests against real fixtures (browser)
 pnpm lint        # eslint + prettier
 ```
 
-`detectors.js` is deliberately free of any `document`/`window` access, so the
-detection logic tests in Node with no DOM harness. Add cases to
-`__tests__/detectors.test.js` when you add a detector.
+`detectors.js` and `scan-helpers.js` are deliberately free of any
+`document`/`window` access, so the detection logic tests in Node with no DOM
+harness. Add cases to `__tests__/detectors.test.js` when you add a detector,
+`__tests__/scan-helpers.test.js` for helper changes, and `__tests__/e2e/` +
+`__tests__/fixtures/` when the behavior needs a real page to exercise.
 
 ## Architecture
 
-| File                      | Role                                                                                                                                                                      |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `detectors.js`            | **Pure** detection logic. String in, findings out. No DOM. Exposed as `globalThis.PIScanner` (for injection) and `module.exports` (for tests). This is the testable core. |
-| `scan.js`                 | The DOM side. Walks text nodes, runs the detectors, adds the CSS-hidden-text heuristic, highlights hits, and stashes a serializable summary on `window.__PIScanResult`.   |
-| `popup.js` / `popup.html` | Injects `detectors.js` then `scan.js` into the active tab on open, reads the summary back, renders findings, sets the toolbar badge.                                      |
-| `manifest.json`           | MV3. Uses `activeTab` + `scripting` (inject-on-click) so it needs **no host permissions**.                                                                                |
+| File                      | Role                                                                                                                                                                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `detectors.js`            | **Pure** detection logic. String in, findings out. No DOM. Exposed as `globalThis.PIScanner` (for injection) and `module.exports` (for tests). This is the testable core.                                                      |
+| `scan-helpers.js`         | **Pure** DOM helper functions shared between the scanner and tests: `elementHidesText`, `sameColor`, `rgb`, `colorFor`, `snippet`, `directText`, `highlightElement`, `clearMarks`. Same dual-export pattern as `detectors.js`. |
+| `scan.js`                 | The DOM side. Walks text nodes, runs the detectors, uses `elementHidesText` for the CSS-hidden-text heuristic, highlights hits, and stashes a serializable summary on `window.__PIScanResult`.                                 |
+| `popup.js` / `popup.html` | Injects `detectors.js` then `scan-helpers.js` then `scan.js` into the active tab on open, reads the summary back, renders findings, sets the toolbar badge.                                                                    |
+| `manifest.json`           | MV3. Uses `activeTab` + `scripting` (inject-on-click) so it needs **no host permissions**.                                                                                                                                     |
 
 > [!IMPORTANT]
 > Injection order matters: `popup.js` runs
-> `executeScript({ files: ["detectors.js", "scan.js"] })`, and `detectors.js`
-> must load first so `PIScanner` exists when `scan.js` runs.
+> `executeScript({ files: ["detectors.js", "scan-helpers.js", "scan.js"] })`,
+> and each file must load in that order since `scan.js` reads
+> `globalThis.PIScanner` and `globalThis.__PIScannerHelpers` at the top of
+> its IIFE.
 
 ## Privacy
 
@@ -192,7 +226,7 @@ Things the scanner will **miss**:
   punctuation between words in an instruction phrase ("ignore 🔒 all previous
   instructions"). Only 🚫 substituting for "ignore"/"disregard" is individually
   patterned; other negation symbols (⛔, ❌, 🙅, etc.) are not.
-- **Unicode homoglyph blocks not yet normalized** — double-struck, circled,
+- **Unicode homoglyph blocks not yet normalized**: double-struck, circled,
   parenthesized, superscript/subscript, small caps, and other decorative letter
   forms pass through undetected.
 - **Emoji-only instructions**: pictograph sequences conveying a message

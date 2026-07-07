@@ -99,6 +99,15 @@ async function scrollTo(targetId) {
   }
 }
 
+// Folding threshold for Task 4 (docs/plans/2026-07-07-false-positive-fatigue.md):
+// 5+ findings sharing the same type+fingerprint (scan.js's item.groupKey,
+// ignoring surrounding context) render as one summary row instead of one
+// row each — e.g. the same zero-width space scattered across many unrelated
+// paragraphs. Below the threshold, every item still renders individually
+// (this is what keeps a handful of genuinely separate occurrences, like the
+// shadow-DOM/iframe test fixtures, fully distinguishable).
+const FOLD_THRESHOLD = 5;
+
 function typeLabel(item) {
   return item.type === "unicode-tag"
     ? `Invisible ASCII-smuggling character${item.decoded ? ` → decodes to: “${item.decoded}”` : ""}`
@@ -125,26 +134,34 @@ function typeLabel(item) {
                         : item.type;
 }
 
-function buildRow(item) {
+// `item` is the representative finding shown (first occurrence for a folded
+// group). `ids` lists every targetId this row should cycle through on
+// click. `contexts`, when given, is a parallel array of each id's own
+// context text: a folded group's members can have genuinely different
+// underlying text (e.g. ten separate SEO-stuffed phrases all hidden the
+// same way), so the context preview should track whichever occurrence is
+// currently selected instead of always showing the first one. Individual
+// (non-folded) rows omit this, since every id there already shares
+// identical context by construction. `cycleKey` identifies this row in
+// `clickCycles`: an item's own index for a normal row, or the shared
+// groupKey for a folded row, since a folded row has no single backing
+// item.index. `count` is the displayed ×N suffix.
+function buildRow(item, { ids, contexts, cycleKey, count }) {
   const row = document.createElement("div");
   row.className = "finding sev-" + item.severity;
   if (item.targetId) row.dataset.targetId = item.targetId;
-  const label = `#${item.index || "?"} ${typeLabel(item)}${item.inComment ? " (in an HTML comment)" : ""}${item.matchCount > 1 ? ` (×${item.matchCount})` : ""}`;
+  const label = `#${item.index || "?"} ${typeLabel(item)}${item.inComment ? " (in an HTML comment)" : ""}${count > 1 ? ` (×${count})` : ""}`;
   const labelEl = document.createElement("div");
   labelEl.className = "label";
   labelEl.textContent = label;
   row.appendChild(labelEl);
+  let ctxEl = null;
   if (item.context) {
-    const ctxEl = document.createElement("div");
+    ctxEl = document.createElement("div");
     ctxEl.className = "ctx";
     ctxEl.textContent = item.context;
     row.appendChild(ctxEl);
   }
-  const ids = item.targetIds?.length
-    ? item.targetIds
-    : item.targetId
-      ? [item.targetId]
-      : [];
   if (ids.length > 1) {
     // Cycling only helps if you can see which occurrence you just landed
     // on. Without this, a second click on the same row looks like it did
@@ -154,9 +171,10 @@ function buildRow(item) {
     posEl.textContent = `1 of ${ids.length}`;
     row.appendChild(posEl);
     row.addEventListener("click", () => {
-      const idx = (clickCycles.get(item.index) || 0) % ids.length;
-      clickCycles.set(item.index, idx + 1);
+      const idx = (clickCycles.get(cycleKey) || 0) % ids.length;
+      clickCycles.set(cycleKey, idx + 1);
       posEl.textContent = `${idx + 1} of ${ids.length}`;
+      if (ctxEl && contexts && contexts[idx]) ctxEl.textContent = contexts[idx];
       scrollTo(ids[idx]);
     });
   } else if (ids.length === 1) {
@@ -182,8 +200,44 @@ function render(r) {
   if (r.bySeverity.low) parts.push(`${r.bySeverity.low} low`);
   els.status.textContent = `${r.count} finding${r.count === 1 ? "" : "s"}: ${parts.join(", ")}`;
 
+  const groups = new Map(); // groupKey -> item[]
   for (const item of r.items) {
-    els.list.appendChild(buildRow(item));
+    if (!item.groupKey) continue;
+    const arr = groups.get(item.groupKey) || [];
+    arr.push(item);
+    groups.set(item.groupKey, arr);
+  }
+
+  const renderedGroups = new Set();
+  for (const item of r.items) {
+    const group = item.groupKey ? groups.get(item.groupKey) : null;
+    if (group && group.length >= FOLD_THRESHOLD) {
+      if (renderedGroups.has(item.groupKey)) continue; // one row per folded group
+      renderedGroups.add(item.groupKey);
+      const ids = [];
+      const contexts = [];
+      let count = 0;
+      for (const g of group) {
+        count += g.matchCount || 1;
+        const gIds = g.targetIds?.length ? g.targetIds : g.targetId ? [g.targetId] : [];
+        for (const id of gIds) {
+          ids.push(id);
+          contexts.push(g.context);
+        }
+      }
+      els.list.appendChild(
+        buildRow(group[0], { ids, contexts, cycleKey: item.groupKey, count })
+      );
+    } else {
+      const ids = item.targetIds?.length
+        ? item.targetIds
+        : item.targetId
+          ? [item.targetId]
+          : [];
+      els.list.appendChild(
+        buildRow(item, { ids, cycleKey: item.index, count: item.matchCount || 1 })
+      );
+    }
   }
 }
 

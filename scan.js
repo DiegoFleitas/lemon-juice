@@ -163,6 +163,18 @@
     // collapse them in the list, but keep every occurrence highlighted on
     // the page and record how many there were so a collapsed entry doesn't
     // read as if it's the only occurrence.
+    //
+    // Also returns `group`: the same type+fingerprint identity but WITHOUT
+    // context, exposed on surviving items as `groupKey` purely for popup.js
+    // to fold large clusters of near-duplicates (e.g. the same invisible
+    // character scattered across many unrelated paragraphs) into one row at
+    // render time. This is deliberately NOT used for the dedup decision
+    // itself — dropping context from the actual dedup key was tried and
+    // reverted (see docs/plans/2026-07-07-false-positive-fatigue.md, Task 4
+    // background): it silently merged genuinely distinct findings that only
+    // shared a code point/pattern, breaking shadow-DOM/many-findings e2e
+    // coverage. `groupKey` lets popup.js apply that same collapsing idea as
+    // a presentation-only, volume-gated choice instead.
     function findingIdentityKey(item) {
       const fingerprint =
         item.type === "instruction-phrase" || item.type === "control-token"
@@ -172,18 +184,22 @@
             : item.type === "css-hidden"
               ? item.reasons.join(",")
               : (item.decoded ?? "");
-      return `${item.type}:${fingerprint}:${item.context}`;
+      return {
+        full: `${item.type}:${fingerprint}:${item.context}`,
+        group: `${item.type}:${fingerprint}`,
+      };
     }
     const seenItems = new Map();
     const deduped = [];
     for (const item of items) {
-      const key = findingIdentityKey(item);
+      const { full: key, group } = findingIdentityKey(item);
       const existing = seenItems.get(key);
       if (existing) {
         existing.matchCount = (existing.matchCount || 1) + 1;
         if (item.targetId) existing.targetIds.push(item.targetId);
       } else {
         item.targetIds = item.targetId ? [item.targetId] : [];
+        item.groupKey = group;
         seenItems.set(key, item);
         deduped.push(item);
       }

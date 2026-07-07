@@ -195,10 +195,10 @@ Both contain instruction-phrase matches and encoded obfuscation that Lemon Juice
 
 > [!CAUTION]
 > A clean scan against known payload collections does **not** mean the scanner
-> catches everything. The "unknown unknowns" problem applies here: attackers
-> invent techniques that aren't in any public collection, and this scanner
-> only detects the subset of hiding techniques it knows about. Testing against
-> these resources is a useful sanity check — not proof of coverage.
+> catches everything. There are things you do not know you do not know.
+> Attackers cook up techniques that are not sitting in any public repo yet.
+> This scanner only knows the hiding tricks it was built to look for. Testing
+> against these resources is a good gut check, not proof of coverage.
 
 ## Architecture
 

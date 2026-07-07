@@ -64,11 +64,17 @@ Five files, strict separation between pure logic and DOM:
   `document`/`window` access. Takes a string, returns findings. Exposes
   `globalThis.PIScanner` (for content-script injection) _and_
   `module.exports` (so it's Node-testable without a DOM harness). Contains
-  seven scan functions aggregated by `scanText()`: `scanInvisible`
+  nine scan functions aggregated by `scanText()`: `scanInvisible`
   (invisible/control code points + the Tags-block ASCII smuggling
   reassembly), `scanEncoded` (base64 runs that decode to readable text),
   `scanPercentEncoded` (`%XX` escape runs), `scanHexEscape` (`\xXX` escape
-  runs), `scanInstructions` (informational-only instruction-phrase matches
+  runs), `scanSpacedHex` (bare hex byte pairs separated by whitespace, no
+  `\x` prefix — same decode-then-verify-printability gate as the other
+  encoded-blob detectors), `scanControlTokens` (LLM chat-template turn
+  markers like `<|im_start|>`/`<|im_end|>`, `[INST]`/`[/INST]`, `</system>` —
+  HIGH severity, essentially never legitimate in web copy, unlike the LOW
+  informational `system:`/`assistant:` instruction phrases below),
+  `scanInstructions` (informational-only instruction-phrase matches
   that never raise overall severity alone), `scanVariationSelectors`
   (bytes hidden in a run of Unicode variation selectors after a base
   character), and `scanSneakyBits` (bytes hidden as a run of invisible-times/
@@ -106,8 +112,13 @@ belongs in this normalization layer rather than as a new `scanX` function.
   `collectRoots` silently skips them rather than throwing.
 - **`scan.js`** — The DOM side. Calls `collectRoots(document)` once per scan
   and runs both passes over every collected root (top document, each open
-  shadow root, each same-origin iframe document): Pass 1 walks text nodes
-  with a `TreeWalker`, runs `PIScanner.scanText` on each; Pass 2 uses
+  shadow root, each same-origin iframe document): Pass 1 walks text **and
+  comment** nodes (`NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT` — a
+  `Comment` node's `.nodeValue`/`.parentElement` shape matches `Text`
+  exactly, so no branching needed; findings get an `inComment: true` flag
+  the popup surfaces, since a `<!-- ... -->` never renders but an LLM
+  ingesting the page's raw HTML/DOM still sees it) with a `TreeWalker`, runs
+  `PIScanner.scanText` on each; Pass 2 uses
   `elementHidesText` (from helpers) for CSS-hidden-text detection (tiny font
   size, `opacity:0`, off-screen absolute positioning, negative text-indent,
   text color equal to background — _not_ plain `display:none`, which is too

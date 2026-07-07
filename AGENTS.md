@@ -88,17 +88,34 @@ to *disguise* letters or words (not a new hiding *mechanism*), it likely
 belongs in this normalization layer rather than as a new `scanX` function.
   See "Adding a new detector" below.
 
-- **`scan-helpers.js`** — Pure DOM helper functions shared between the
+- **`scan-helpers.js`** — Pure-ish DOM helper functions shared between the
   scanner and tests. Dual-export (global + CJS) matching the `detectors.js`
-  pattern. Contains `elementHidesText`, `sameColor`, `rgb`, `colorFor`,
-  `snippet`, `directText`, `highlightElement`, and `clearMarks`.
-- **`scan.js`** — The DOM side. Walks text nodes with a `TreeWalker`, runs
-  `PIScanner.scanText` on each, uses `elementHidesText` (from helpers) for
-  CSS-hidden-text detection (tiny font size, `opacity:0`, off-screen absolute
-  positioning, negative text-indent, text color equal to background — _not_
-  plain `display:none`, which is too common to be signal), highlights hits
-  with an outline + `data-piscan-mark` attribute, and stashes a serializable
-  summary on `window.__PIScanResult`.
+  pattern. Contains `elementHidesText`, `resolveBackgroundColor`, `luminance`,
+  `colorFor`, `snippet`, `directText`, `highlightElement`, `clearMarks`, and
+  two traversal helpers: `collectRoots(root)` recursively gathers every
+  `Document`/`ShadowRoot` reachable from `root` — open shadow roots
+  (`element.shadowRoot`) and same-origin iframe documents
+  (`iframe.contentDocument`), nested arbitrarily deep — and
+  `deepQuerySelector(root, selector)` (built on `collectRoots`) finds an
+  element by selector across all of them. `resolveBackgroundColor` and
+  `elementHidesText` resolve style via `el.ownerDocument.defaultView
+.getComputedStyle(el)` rather than the module-level `document`, since `el`
+  may belong to an iframe's document rather than the top one this script was
+  injected into. Closed shadow roots and cross-origin iframes are
+  unreachable by design (spec / same-origin policy respectively) —
+  `collectRoots` silently skips them rather than throwing.
+- **`scan.js`** — The DOM side. Calls `collectRoots(document)` once per scan
+  and runs both passes over every collected root (top document, each open
+  shadow root, each same-origin iframe document): Pass 1 walks text nodes
+  with a `TreeWalker`, runs `PIScanner.scanText` on each; Pass 2 uses
+  `elementHidesText` (from helpers) for CSS-hidden-text detection (tiny font
+  size, `opacity:0`, off-screen absolute positioning, negative text-indent,
+  text color equal to background — _not_ plain `display:none`, which is too
+  common to be signal). Highlights hits with an outline + `data-piscan-mark`
+  attribute, and stashes a serializable summary on `window.__PIScanResult`.
+  `data-piscan-id` values are unique across the whole page (one counter
+  shared across all roots), which lets `popup.js`'s `scrollTo` re-locate an
+  element by id later via `deepQuerySelector`.
 - **`popup.js` / `popup.html`** — On popup open, injects `detectors.js` then
   `scan-helpers.js` then `scan.js` into the active tab via
   `browser.scripting.executeScript`, reads back `window.__PIScanResult` with
@@ -112,7 +129,13 @@ at the top of its IIFE.
 
 **Permissions model:** only `activeTab` + `scripting` — no host permissions.
 Scanning only ever happens on the tab active when the user clicks the
-toolbar icon, and only for that one interaction.
+toolbar icon, and only for that one interaction. This same-origin-only
+posture is also why iframe traversal stops at `contentDocument` access
+(reachable without new permissions) rather than injecting into every frame
+via `scripting.executeScript({ allFrames: true })`, which would reach
+cross-origin iframes too but needs per-frame result aggregation in
+`popup.js` — not implemented; see the shadow-DOM/iframe limitations in
+README.md.
 
 ## Adding a new detector
 

@@ -202,13 +202,13 @@ Both contain instruction-phrase matches and encoded obfuscation that Lemon Juice
 
 ## Architecture
 
-| File                      | Role                                                                                                                                                                                                                           |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `detectors.js`            | **Pure** detection logic. String in, findings out. No DOM. Exposed as `globalThis.PIScanner` (for injection) and `module.exports` (for tests). This is the testable core.                                                      |
-| `scan-helpers.js`         | **Pure** DOM helper functions shared between the scanner and tests: `elementHidesText`, `sameColor`, `rgb`, `colorFor`, `snippet`, `directText`, `highlightElement`, `clearMarks`. Same dual-export pattern as `detectors.js`. |
-| `scan.js`                 | The DOM side. Walks text nodes, runs the detectors, uses `elementHidesText` for the CSS-hidden-text heuristic, highlights hits, and stashes a serializable summary on `window.__PIScanResult`.                                 |
-| `popup.js` / `popup.html` | Injects `detectors.js` then `scan-helpers.js` then `scan.js` into the active tab on open, reads the summary back, renders findings, sets the toolbar badge.                                                                    |
-| `manifest.json`           | MV3. Uses `activeTab` + `scripting` (inject-on-click) so it needs **no host permissions**.                                                                                                                                     |
+| File                      | Role                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `detectors.js`            | **Pure** detection logic. String in, findings out. No DOM. Exposed as `globalThis.PIScanner` (for injection) and `module.exports` (for tests). This is the testable core.                                                                                                                                                                               |
+| `scan-helpers.js`         | DOM helper functions shared between the scanner and tests: `elementHidesText`, `resolveBackgroundColor`, `luminance`, `colorFor`, `snippet`, `directText`, `highlightElement`, `clearMarks`, plus `collectRoots`/`deepQuerySelector` for recursing into open shadow roots and same-origin iframe documents. Same dual-export pattern as `detectors.js`. |
+| `scan.js`                 | The DOM side. Walks text nodes across the top document, every open shadow root, and every same-origin iframe document (via `collectRoots`), runs the detectors, uses `elementHidesText` for the CSS-hidden-text heuristic, highlights hits, and stashes a serializable summary on `window.__PIScanResult`.                                              |
+| `popup.js` / `popup.html` | Injects `detectors.js` then `scan-helpers.js` then `scan.js` into the active tab on open, reads the summary back, renders findings, sets the toolbar badge.                                                                                                                                                                                             |
+| `manifest.json`           | MV3. Uses `activeTab` + `scripting` (inject-on-click) so it needs **no host permissions**.                                                                                                                                                                                                                                                              |
 
 > [!IMPORTANT]
 > Injection order matters: `popup.js` runs
@@ -249,6 +249,15 @@ Things the scanner will **miss**:
   visually (e.g. 👁‍🗨🚫📋↔🗑) are invisible to text-pattern scanning.
 - **Compound obfuscation**: multiple obfuscation layers applied together can
   push normalized text beyond what the deobfuscation pipeline reconstructs.
+- **Closed shadow roots**: content inside `element.attachShadow({mode: "closed"})`
+  is unreachable from outside by design of the Shadow DOM spec — no scanner
+  can see it. Open shadow roots and same-origin iframes _are_ scanned
+  (recursively, arbitrarily nested).
+- **Cross-origin iframes**: blocked by the same-origin policy — `contentDocument`
+  access throws/returns `null` for a frame on a different origin. Reachable in
+  principle via `scripting.executeScript({ allFrames: true })`, but that needs
+  per-frame result aggregation (severity counts, click-to-scroll targeting the
+  right frame) in `popup.js` that doesn't exist yet.
 
 You'll also get **false positives** from legitimate zero-width joiners in
 Arabic/Indic scripts, `.sr-only` accessibility text, and any article discussing
@@ -257,6 +266,8 @@ prompt injection (including this README).
 ## Roadmap
 
 - [x] `__tests__/detectors.test.js` with the full detector matrix
+- [x] Scan open shadow roots and same-origin iframes, recursively
+- [ ] Reach cross-origin iframes via `scripting.executeScript({ allFrames: true })` + per-frame result aggregation in `popup.js`
 - [ ] Opt-in auto-scan on a user-configured domain list (requires per-site host permissions, kept off by default)
 - [ ] Chrome port (swap the event page for a service worker, `browser.*` for a polyfill)
 

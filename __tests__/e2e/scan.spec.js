@@ -315,6 +315,24 @@ test("dedup collapses identical findings across repeated elements", async ({ pag
   expect(badges2).toEqual(badges3);
 });
 
+test("never marks its own decoration nodes (no mark nested inside a mark)", async ({
+  page,
+}) => {
+  const result = await injectAndScan(page, "decoration-rescan.html");
+  // The instruction phrase is the only real finding; the injected candle must
+  // not be re-flagged as a css-hidden finding despite its blue color matching
+  // the gray background luminance.
+  const cssHidden = result.items.filter((i) => i.type === "css-hidden");
+  expect(cssHidden.length).toBe(0);
+  // The target keeps exactly one candle, and that candle holds no nested
+  // mark/candle/badge — decoration nodes are excluded from both scan passes.
+  await expect(page.locator("#target > .piscan-candle")).toHaveCount(1);
+  await expect(page.locator(".piscan-candle [data-piscan-mark]")).toHaveCount(0);
+  await expect(page.locator(".piscan-candle[data-piscan-mark]")).toHaveCount(0);
+  await expect(page.locator(".piscan-candle .piscan-candle")).toHaveCount(0);
+  await expect(page.locator(".piscan-badge[data-piscan-mark]")).toHaveCount(0);
+});
+
 test("clearMarks removes marks and candles when switching to clean page", async ({
   page,
 }) => {

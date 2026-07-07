@@ -1,0 +1,43 @@
+<!doctype html>
+<html data-fixture-name="iframe-same-origin">
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <iframe id="frame"></iframe>
+    <script>
+      // Zero-width space, spelled out via fromCharCode rather than an inline
+      // invisible byte so the fixture source itself has no hidden characters.
+      const ZWS = String.fromCharCode(0x200b);
+
+      // A bare <iframe> with no src/srcdoc gets a same-origin "about:blank"
+      // document synchronously — no need to wait for a load event, and no
+      // HTML-escaping gymnastics to embed markup via src/srcdoc.
+      const frame = document.getElementById("frame");
+      const doc = frame.contentDocument;
+
+      const zws = doc.createElement("p");
+      zws.id = "iframe-zws";
+      zws.textContent = "Zero width space in iframe: a" + ZWS + "b";
+      doc.body.appendChild(zws);
+
+      const cssHidden = doc.createElement("p");
+      cssHidden.id = "iframe-css-hidden";
+      cssHidden.setAttribute("data-testid", "iframe-css-hidden");
+      cssHidden.style.opacity = "0";
+      cssHidden.textContent = "Hidden in iframe";
+      doc.body.appendChild(cssHidden);
+
+      // Shadow root nested inside the iframe's own document, to verify the
+      // two mechanisms compose (shadow-in-iframe).
+      const shadowHost = doc.createElement("div");
+      doc.body.appendChild(shadowHost);
+      const shadowRoot = shadowHost.attachShadow({ mode: "open" });
+      const shadowZws = doc.createElement("p");
+      shadowZws.id = "iframe-shadow-zws";
+      shadowZws.textContent =
+        "Zero width space in shadow root nested in iframe: a" + ZWS + "b";
+      shadowRoot.appendChild(shadowZws);
+    </script>
+  </body>
+</html>

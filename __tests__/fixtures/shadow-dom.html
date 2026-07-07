@@ -1,0 +1,49 @@
+<!doctype html>
+<html data-fixture-name="shadow-dom">
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <div id="open-host"></div>
+    <div id="nested-outer-host"></div>
+    <div id="closed-host"></div>
+    <script>
+      // Zero-width space, spelled out via fromCharCode rather than an inline
+      // invisible byte so the fixture source itself has no hidden characters.
+      const ZWS = String.fromCharCode(0x200b);
+
+      // Open shadow root: an invisible-character finding and a CSS-hidden finding.
+      const openHost = document.getElementById("open-host");
+      const openRoot = openHost.attachShadow({ mode: "open" });
+      const openZws = document.createElement("p");
+      openZws.id = "open-zws";
+      openZws.textContent = "Zero width space in open shadow root: a" + ZWS + "b";
+      openRoot.appendChild(openZws);
+      const openCssHidden = document.createElement("p");
+      openCssHidden.id = "open-css-hidden";
+      openCssHidden.setAttribute("data-testid", "open-css-hidden");
+      openCssHidden.style.opacity = "0";
+      openCssHidden.textContent = "Hidden in open shadow root";
+      openRoot.appendChild(openCssHidden);
+
+      // Open shadow root nested inside another open shadow root.
+      const nestedOuterHost = document.getElementById("nested-outer-host");
+      const nestedOuterRoot = nestedOuterHost.attachShadow({ mode: "open" });
+      const nestedInnerHost = document.createElement("div");
+      nestedOuterRoot.appendChild(nestedInnerHost);
+      const nestedInnerRoot = nestedInnerHost.attachShadow({ mode: "open" });
+      const nestedZws = document.createElement("p");
+      nestedZws.id = "nested-zws";
+      nestedZws.textContent = "Zero width space in nested shadow root: a" + ZWS + "b";
+      nestedInnerRoot.appendChild(nestedZws);
+
+      // Closed shadow root: content must NOT be reachable by the scanner.
+      const closedHost = document.getElementById("closed-host");
+      const closedRoot = closedHost.attachShadow({ mode: "closed" });
+      const closedZws = document.createElement("p");
+      closedZws.id = "closed-zws";
+      closedZws.textContent = "Zero width space in closed shadow root: a" + ZWS + "b";
+      closedRoot.appendChild(closedZws);
+    </script>
+  </body>
+</html>

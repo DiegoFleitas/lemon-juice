@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.2 - 2026-07-07
+
+- docs: align descriptions across manifest.json, package.json, and GitHub (9cab034)
+
 ## v0.1.1 - 2026-07-07
 
 - docs(agents): add a pre-release checklist (38f88cc)

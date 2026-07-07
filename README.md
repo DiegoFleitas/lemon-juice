@@ -16,9 +16,9 @@ _Escrito con jugo de limón._
 >
 > — William of Baskerville, _The Name of the Rose_ (1986)
 
-A Firefox extension that holds a web page up to the flame. It reveals **hidden
-text and prompt-injection payloads**: the writing an AI assistant would read
-but you can't see. That way you can decide before you hand the page to
+A Firefox extension that holds a web page up to the flame. It reveals **SOME**
+hidden text and prompt-injection payloads: the writing an AI assistant would
+read but you can't see. That way you can decide before you hand the page to
 ChatGPT, Claude, Gemini, or a browser agent.
 
 Click the toolbar icon and Lemon Juice surfaces invisible Unicode, ASCII

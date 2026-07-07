@@ -304,6 +304,8 @@
     /\bfetch\s+(?:\w+\s+)?(?:from|at)\s+\S+\.\S+/i,
     // Ethical-framing jailbreak: "as an ethical hacker / pentester"
     /\bas\s+an?\s+ethical\s+(?:hacker|researcher|pentester)\b/i,
+    // Imperative "give/tell/show me the system prompt" — no "your" required
+    /\b(give|tell|show|send|reveal|provide)\s+(?:me\s+)?(?:the\s+)?(?:your\s+)?system\s+prompt\b/i,
   ];
 
   // Spaced-letter instruction patterns — match text where each character is

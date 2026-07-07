@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Lemon Juice (Alpha)",
   "version": "0.1.1",
-  "description": "Holds a web page up to the flame: reveals hidden text and prompt-injection payloads an AI would read but you can't see. All local; nothing leaves your browser.",
+  "description": "Firefox extension that finds SOME hidden text and prompt-injection payloads on web pages before you hand them to an AI.",
   "browser_specific_settings": {
     "gecko": {
       "id": "lemon-juice@diegofleitas",

@@ -140,3 +140,22 @@ don't default new patterns to `HIGH` without that justification, and keep
 instruction-phrase-style heuristics informational (`LOW`, non-convicting) if
 they're prone to false-positiving on legitimate pages that merely discuss the
 topic.
+
+## Before cutting a release
+
+v0.1.0 needed 5 follow-up commits (gitignore hiding the release automation,
+an invalid manifest key, two rounds of prettier formatting) because the
+release script and workflow were committed and tagged without ever being
+run end-to-end first. Before tagging the next version:
+
+- Run `pnpm lint && pnpm test && pnpm test:e2e` on a clean tree, then
+  `pnpm run package` and load the resulting zip as a temporary add-on — the
+  CI release workflow only runs lint + unit tests, not e2e, and never
+  substitutes for actually loading the packaged zip.
+- If you touched `scripts/release.js` or `.github/workflows/release.yml`,
+  dry-run them (or read the diff against a real `git status`-clean tree)
+  instead of trusting them on the first real tag push.
+- Before adding a new piece of automation (a bot, a workflow, a script),
+  check what's already configured — this repo briefly had a stray
+  `.gitignore` pattern hiding tracked files for the same reason: nobody
+  checked existing state before adding new state.

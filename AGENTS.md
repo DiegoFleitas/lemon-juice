@@ -58,18 +58,36 @@ Temporary add-ons are removed on Firefox restart.
 
 ## Architecture
 
-Four files, strict separation between pure logic and DOM:
+Five files, strict separation between pure logic and DOM:
 
 - **`detectors.js`** — Pure detection logic, deliberately free of any
   `document`/`window` access. Takes a string, returns findings. Exposes
   `globalThis.PIScanner` (for content-script injection) _and_
-  `module.exports` (so it's Node-testable without a DOM harness, once tests
-  exist). Contains four detector families aggregated by `scanText()`:
-  `scanInvisible` (invisible/control code points + the Tags-block ASCII
-  smuggling reassembly), `scanEncoded` (base64 runs that decode to readable
-  text), `scanInstructions` (informational-only instruction-phrase matches
-  that never raise overall severity alone), plus `worstSeverity()` for
-  aggregating.
+  `module.exports` (so it's Node-testable without a DOM harness). Contains
+  seven scan functions aggregated by `scanText()`: `scanInvisible`
+  (invisible/control code points + the Tags-block ASCII smuggling
+  reassembly), `scanEncoded` (base64 runs that decode to readable text),
+  `scanPercentEncoded` (`%XX` escape runs), `scanHexEscape` (`\xXX` escape
+  runs), `scanInstructions` (informational-only instruction-phrase matches
+  that never raise overall severity alone), `scanVariationSelectors`
+  (bytes hidden in a run of Unicode variation selectors after a base
+  character), and `scanSneakyBits` (bytes hidden as a run of invisible-times/
+  invisible-plus math operators), plus `worstSeverity()` for aggregating.
+
+  A separate normalization layer feeds re-scans back into `scanInstructions`
+  (and, for `stripInvisibleChars`, the encoded-blob scans too) rather than
+  being its own top-level detector: `stripInvisibleChars` removes
+  invisible/tag characters and re-runs the encoded + instruction scans over
+  the stripped text; `normalizeDeobfuscated` runs a single per-character pass
+  converting fancy Unicode letters to ASCII (`unicodeLetterToAscii`), then
+  leetspeak (the `LEET` map), then stripping obfuscation delimiters
+  (`| _ \` ^ ~`), before re-running the instruction scan; and
+`SPACED_INSTRUCTION_PATTERNS` is a separate regex pass over the raw text
+for space-delimited letters (`i g n o r e ...`). If you're adding a new way
+to *disguise* letters or words (not a new hiding *mechanism*), it likely
+belongs in this normalization layer rather than as a new `scanX` function.
+  See "Adding a new detector" below.
+
 - **`scan-helpers.js`** — Pure DOM helper functions shared between the
   scanner and tests. Dual-export (global + CJS) matching the `detectors.js`
   pattern. Contains `elementHidesText`, `sameColor`, `rgb`, `colorFor`,
@@ -105,6 +123,15 @@ type-specific fields the popup's `render()` in `popup.js` needs to label
 them). Any new `item.type` also needs a case added to the label switch in
 `popup.js`'s `render()` function, or it'll fall through to the raw `type`
 string.
+
+That's the right shape for a new hiding _mechanism_ (a new kind of invisible
+character, encoding scheme, etc.). If instead you're adding a new way to
+_disguise_ letters or words in already-visible text, extend the
+normalization layer in the `detectors.js` bullet above (`unicodeLetterToAscii`'s
+range table, the `LEET` map, or the delimiter-strip charset in
+`normalizeDeobfuscated`) so it feeds the existing `scanInstructions` re-scan,
+rather than writing a parallel `scanX` function that reimplements its own
+normalization.
 
 Severity should reflect "how likely is this to be an attack vs. a legitimate
 page feature" (see the comments at the top of `detectors.js` for the

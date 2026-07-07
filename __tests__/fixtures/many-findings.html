@@ -1,0 +1,15 @@
+<!doctype html>
+<html data-fixture-name="many-findings">
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <script>
+      for (let i = 0; i < 250; i++) {
+        const p = document.createElement("p");
+        p.textContent = `para ${i} has\u200Bzwsp\u200B`;
+        document.body.appendChild(p);
+      }
+    </script>
+  </body>
+</html>

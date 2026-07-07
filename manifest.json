@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Lemon Juice",
+  "version": "0.1.0",
+  "description": "Holds a web page up to the flame: reveals hidden text and prompt-injection payloads an AI would read but you can't see. All local; nothing leaves your browser.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "lemon-juice@diegofleitas",
+      "strict_min_version": "115.0"
+    }
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "permissions": ["activeTab", "scripting"],
+  "action": {
+    "default_title": "Lemon Juice — reveal hidden text on this page",
+    "default_popup": "popup.html"
+  },
+  "icons": {
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}

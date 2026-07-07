@@ -1,0 +1,21 @@
+*.zip
+release*
+
+# Node.js / tooling
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Build artifacts
+dist/
+coverage/
+test-results/
+playwright-report/
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

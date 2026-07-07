@@ -1,0 +1,22 @@
+{
+  "name": "lemon-juice",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Firefox extension that reveals hidden text and prompt-injection payloads on web pages.",
+  "license": "GPL-3.0",
+  "packageManager": "pnpm@11.5.0",
+  "scripts": {
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "test": "node --test '__tests__/**/*.test.js'",
+    "package": "mkdir -p dist && zip -r dist/lemon-juice.zip manifest.json popup.html detectors.js scan-helpers.js scan.js popup.js icons/",
+    "release": "node scripts/release.js",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.19.0",
+    "@playwright/test": "^1.61.1",
+    "eslint": "^9.19.0",
+    "prettier": "^3.4.2"
+  }
+}

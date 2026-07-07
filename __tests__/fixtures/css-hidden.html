@@ -1,0 +1,33 @@
+<!doctype html>
+<html data-fixture-name="css-hidden">
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <p data-testid="font-size-hidden" style="font-size: 0">Tiny font hidden text</p>
+    <p data-testid="opacity-hidden" style="opacity: 0">Invisible text</p>
+    <p data-testid="off-screen-hidden" style="position: absolute; left: -9999px">
+      Off-screen text
+    </p>
+    <p data-testid="text-indent-hidden" style="text-indent: -9999px">
+      Indented off-screen
+    </p>
+    <p data-testid="same-color-hidden" style="color: white; background-color: white">
+      White on white
+    </p>
+    <p data-testid="white-on-default-bg" style="color: white">White on default page bg</p>
+    <p data-testid="display-none" style="display: none">Should NOT be flagged</p>
+    <p data-testid="visible-normal">Normal visible text — no finding</p>
+    <div data-testid="near-white-bg" style="background-color: rgb(245, 245, 245)">
+      <p>
+        <span class="outer"
+          ><span style="color: rgb(255, 255, 255)"
+            ><span data-testid="wix-nested"
+              >Nested white text on near-white bg</span
+            ></span
+          ></span
+        >
+      </p>
+    </div>
+  </body>
+</html>

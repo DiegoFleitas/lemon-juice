@@ -1,0 +1,41 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": true,
+  "mcp": {
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "enabled": true
+    },
+    "joplin": {
+      "type": "local",
+      "command": [
+        "bash",
+        "-c",
+        "source .env && exec uvx --from joplin-mcp joplin-mcp-server"
+      ],
+      "enabled": false
+    },
+    "sequential-thinking": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "enabled": true
+    }
+  },
+  "permission": {
+    "skill": {
+      "*": "allow",
+      "algorithmic-art": "deny",
+      "brand-guidelines": "deny",
+      "canvas-design": "deny",
+      "slack-gif-creator": "deny",
+      "incident-response": "deny",
+      "internal-comms": "deny",
+      "standup": "deny",
+      "git-identity-rewrite": "deny",
+      "mcp-builder": "deny",
+      "web-artifacts-builder": "deny",
+      "theme-factory": "deny"
+    }
+  }
+}

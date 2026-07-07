@@ -181,10 +181,8 @@ prompt injection (including this README).
 
 ## Roadmap
 
-- [ ] `__tests__/detectors.test.js` with the full detector matrix
-- [ ] Opt-in auto-scan on page load (requires host permissions, kept off by default)
-- [ ] "Copy findings as JSON" export for reporting
-- [ ] Allowlist UI to suppress known-good patterns per site
+- [x] `__tests__/detectors.test.js` with the full detector matrix
+- [ ] Opt-in auto-scan on a user-configured domain list (requires per-site host permissions, kept off by default)
 - [ ] Chrome port (swap the event page for a service worker, `browser.*` for a polyfill)
 
 ## Credits

@@ -30,7 +30,9 @@ Each hit is highlighted on the page and listed in the popup.
 > your AI assistant and it does not "clean" anything. It gives _you_ eyes on
 > content that is otherwise invisible, so a human stays in the loop. It is
 > better than nothing, not a guarantee: a clean scan means "nothing obvious
-> found," not "this page is safe." See
+> found," not "this page is safe." This project is also very new (its first
+> few days of development) and untested against real-world attacks — don't
+> use a clean scan as license to skip your own judgment. See
 > [What this is and isn't](#what-this-is-and-isnt).
 
 ## Why this exists

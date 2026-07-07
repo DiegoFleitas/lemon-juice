@@ -28,7 +28,9 @@ Each hit is highlighted on the page and listed in the popup.
 > [!IMPORTANT]
 > This is a detection aid, not a shield. It does not sit between the page and
 > your AI assistant and it does not "clean" anything. It gives _you_ eyes on
-> content that is otherwise invisible, so a human stays in the loop. See
+> content that is otherwise invisible, so a human stays in the loop. It is
+> better than nothing, not a guarantee: a clean scan means "nothing obvious
+> found," not "this page is safe." See
 > [What this is and isn't](#what-this-is-and-isnt).
 
 ## Why this exists

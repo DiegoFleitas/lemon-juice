@@ -107,6 +107,17 @@ function main() {
   console.log("Updating CHANGELOG.md...");
   updateChangelog(version);
 
+  console.log("Formatting changed files...");
+  run(
+    "pnpm",
+    "exec",
+    "prettier",
+    "--write",
+    "package.json",
+    "manifest.json",
+    "CHANGELOG.md"
+  );
+
   console.log("Creating release commit and tag...");
   run("git", "add", "package.json", "manifest.json", "CHANGELOG.md");
   run("git", "commit", "-m", `Release ${tag}`);

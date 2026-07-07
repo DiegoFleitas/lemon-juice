@@ -131,6 +131,15 @@
       // Pass 2: elements whose text is visually hidden by CSS.
       scope.querySelectorAll("*").forEach((el) => {
         if (SKIP_TAGS.has(el.tagName)) return;
+        // Skip our own decoration nodes: Pass 1 injects .piscan-candle spans
+        // before this querySelectorAll runs, and their glyph counts as
+        // directText, so without this guard Pass 2 re-flags them (candle color
+        // ≈ background), nesting a mark inside a mark.
+        if (
+          el.classList.contains("piscan-candle") ||
+          el.classList.contains("piscan-badge")
+        )
+          return;
         const ownText = directText(el);
         if (!ownText) return;
         const reasons = elementHidesText(el);

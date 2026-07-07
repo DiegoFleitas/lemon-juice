@@ -193,6 +193,13 @@ Pages you can point the scanner at to exercise detection:
 
 Both contain instruction-phrase matches and encoded obfuscation that Lemon Juice's informational detectors will flag. They also serve as honest test cases for the scanner's limitations (payload splitting, visible-character obfuscation).
 
+> [!CAUTION]
+> A clean scan against known payload collections does **not** mean the scanner
+> catches everything. The "unknown unknowns" problem applies here: attackers
+> invent techniques that aren't in any public collection, and this scanner
+> only detects the subset of hiding techniques it knows about. Testing against
+> these resources is a useful sanity check — not proof of coverage.
+
 ## Architecture
 
 | File                      | Role                                                                                                                                                                                                                           |

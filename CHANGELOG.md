@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.1.1 - 2026-07-07
+
+- docs(agents): add a pre-release checklist (38f88cc)
+- fix(popup): handle injection failures instead of an unhandled rejection (0bcf0c3)
+- refactor(scan): dedupe bg-resolution helper, drop dead sameColor/rgb (a1d6818)
+- fix(release): auto-format bumped files with prettier (9b647f6)
+- style: reformat manifest.json and CHANGELOG.md with prettier (c06f3c1)
+- style(release): format release.js and release.yml with prettier (30ff9f2)
+- docs(test-resources): humanize unknown-unknowns caution (3d1555e)
+- docs(test-resources): add unknown-unknowns caveat to test resources section (109f5a0)
+
 ## v0.1.0 - 2026-07-07
 
 - docs: add test resources section with payload collection links (eb3bf50)

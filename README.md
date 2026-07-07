@@ -12,8 +12,7 @@ _Escrito con jugo de limón._
 
 </div>
 
-> _He deduces that something was written on the parchment in lemon juice, so he
-> holds it above the flame — and the hidden text appears._
+> _Ah, yes. Written with lemon juice._
 >
 > — William of Baskerville, _The Name of the Rose_ (1986)
 

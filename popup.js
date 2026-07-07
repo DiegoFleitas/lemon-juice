@@ -8,6 +8,10 @@ const els = {
   rescan: document.getElementById("rescan"),
 };
 
+// Tracks which collapsed element to scroll to next time a deduped row is
+// clicked. Each item gets a cycling index into its targetIds array.
+const clickCycles = new Map();
+
 async function activeTab() {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   return tab;
@@ -100,11 +104,11 @@ function render(r) {
                       : item.type === "control-token"
                         ? `LLM chat-template control token: “${item.match}”`
                         : item.type === "css-hidden"
-                          ? `Visually hidden text (${item.reasons.join(", ")})`
+                          ? `Visually hidden text (${item.reasons.join(", ")})${item.likelyA11y ? " — looks like accessibility markup, downgraded" : ""}`
                           : item.type === "instruction-phrase"
                             ? `Instruction-like phrase${item.normalized ? " (revealed after removing invisible characters)" : ""}: “${item.match}”`
                             : item.type
-    }${item.inComment ? " (in an HTML comment)" : ""}`;
+    }${item.inComment ? " (in an HTML comment)" : ""}${item.matchCount > 1 ? ` (×${item.matchCount})` : ""}`;
     const labelEl = document.createElement("div");
     labelEl.className = "label";
     labelEl.textContent = label;
@@ -115,7 +119,18 @@ function render(r) {
       ctxEl.textContent = item.context;
       row.appendChild(ctxEl);
     }
-    if (item.targetId) row.addEventListener("click", () => scrollTo(item.targetId));
+    const ids = item.targetIds?.length
+      ? item.targetIds
+      : item.targetId
+        ? [item.targetId]
+        : [];
+    if (ids.length) {
+      row.addEventListener("click", () => {
+        const idx = (clickCycles.get(item) || 0) % ids.length;
+        clickCycles.set(item, idx + 1);
+        scrollTo(ids[idx]);
+      });
+    }
     els.list.appendChild(row);
   }
 }

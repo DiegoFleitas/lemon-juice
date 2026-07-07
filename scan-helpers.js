@@ -103,6 +103,24 @@
     return bg;
   }
 
+  // Common screen-reader-only class names across major frameworks (Bootstrap
+  // & Tailwind: sr-only, WordPress: screen-reader-text, various: visually-hidden,
+  // offscreen). Not exhaustive — CSS-module/hashed class names and other
+  // conventions won't match — this is a best-effort severity signal, not a
+  // detection boundary (unlike the original approach that fully suppressed
+  // these; see docs/plans/2026-07-07-false-positive-fatigue.md for why).
+  const A11Y_HIDDEN_CLASSES = [
+    "sr-only",
+    "visually-hidden",
+    "offscreen",
+    "screen-reader-text",
+  ];
+
+  function elementIsA11yHidden(el) {
+    if (el.getAttribute("aria-hidden") === "true") return true;
+    return A11Y_HIDDEN_CLASSES.some((c) => el.classList.contains(c));
+  }
+
   function elementHidesText(el) {
     const cs = el.ownerDocument.defaultView.getComputedStyle(el);
     const reasons = [];
@@ -161,6 +179,7 @@
     deepQuerySelector,
     clearMarks,
     elementHidesText,
+    elementIsA11yHidden,
     luminance,
     resolveBackgroundColor,
     highlightElement,

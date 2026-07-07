@@ -263,8 +263,12 @@ Things the scanner will **miss**:
   right frame) in `popup.js` that doesn't exist yet.
 
 You'll also get **false positives** from legitimate zero-width joiners in
-Arabic/Indic scripts, `.sr-only` accessibility text, and any article discussing
-prompt injection (including this README).
+Arabic/Indic scripts and any article discussing prompt injection (including
+this README). `.sr-only`/`aria-hidden` accessibility text is still flagged
+(it uses the same CSS techniques a real hidden payload would) but downgraded
+to LOW/informational severity rather than suppressed, since the markers are
+attacker-controllable and full suppression would be a detection-evasion
+shortcut.
 
 ## Roadmap
 

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>A11y-hidden detection</title>
+  </head>
+  <body>
+    <span
+      aria-hidden="true"
+      style="position: absolute; left: -9999px"
+      data-testid="a11y-offscreen"
+    >
+      This is accessibility off-screen text
+    </span>
+    <p class="sr-only" style="opacity: 0; font-size: 1px" data-testid="a11y-sronly">
+      This is sr-only text
+    </p>
+    <p style="text-indent: -9999px" data-testid="ordinary-css-hidden">
+      This is genuinely hidden text (negative text-indent)
+    </p>
+  </body>
+</html>

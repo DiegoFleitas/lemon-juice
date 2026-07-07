@@ -201,6 +201,30 @@ test("CSS-hidden does not downgrade high-severity candle icon color", async ({
   expect(iconColor).toBe("rgb(229, 72, 77)");
 });
 
+test("downgrades a11y-marked CSS-hidden elements to LOW severity", async ({ page }) => {
+  const result = await injectAndScan(page, "a11y-hidden.html");
+  const cssHidden = result.items.filter((i) => i.type === "css-hidden");
+  const a11yItems = cssHidden.filter((i) => i.likelyA11y);
+  const ordinary = cssHidden.filter((i) => !i.likelyA11y);
+  // Both a11y-marked elements produce LOW-severity findings
+  expect(a11yItems.length).toBe(2);
+  for (const item of a11yItems) {
+    expect(item.severity).toBe("low");
+  }
+  // The ordinary css-hidden element remains MEDIUM with no likelyA11y flag
+  expect(ordinary.length).toBe(1);
+  expect(ordinary[0].severity).toBe("medium");
+  expect(ordinary[0].likelyA11y).toBeUndefined();
+  // All 3 elements still have candle icons
+  await expect(
+    page.locator('[data-testid="a11y-offscreen"] .piscan-candle')
+  ).toBeAttached();
+  await expect(page.locator('[data-testid="a11y-sronly"] .piscan-candle')).toBeAttached();
+  await expect(
+    page.locator('[data-testid="ordinary-css-hidden"] .piscan-candle')
+  ).toBeAttached();
+});
+
 test("result has correct summary structure", async ({ page }) => {
   const result = await injectAndScan(page, "invisible-chars.html");
   expect(result).toHaveProperty("url");
@@ -248,6 +272,47 @@ test("re-scanning preserves marks on same page", async ({ page }) => {
   expect(candles2).toBe(marked2);
   const badges2 = await page.locator(".piscan-badge").count();
   expect(badges2).toBe(marked2);
+});
+
+test("dedup collapses identical findings across repeated elements", async ({ page }) => {
+  const result = await injectAndScan(page, "repeated-findings.html");
+  // The 3 repeated elements each produce an invisible-ZWSP finding and a
+  // normalized instruction-phrase finding — the ZWSP findings should be
+  // deduped into 1 with matchCount=3, and the instruction-phrase findings
+  // deduped into 1 with matchCount=3.
+  const invisFindings = result.items.filter((i) => i.type === "invisible");
+  const phraseFindings = result.items.filter(
+    (i) => i.type === "instruction-phrase" && i.normalized
+  );
+  // At least one deduped item exists with matchCount 3
+  const dedupedInvis = invisFindings.filter((i) => i.matchCount === 3);
+  const dedupedPhrases = phraseFindings.filter((i) => i.matchCount === 3);
+  expect(dedupedInvis.length).toBeGreaterThanOrEqual(1);
+  expect(dedupedPhrases.length).toBeGreaterThanOrEqual(1);
+  // The distinct finding is separate and has no matchCount (or matchCount=1)
+  const distinct = result.items.find(
+    (i) => i.type === "instruction-phrase" && !i.normalized && !i.matchCount
+  );
+  expect(distinct).toBeTruthy();
+  expect(distinct.context).toMatch(/you are now a duck/);
+  // All 3 repeated elements still have candle icons and marks
+  await expect(page.locator('[data-testid="repeated-1"] .piscan-candle')).toBeAttached();
+  await expect(page.locator('[data-testid="repeated-2"] .piscan-candle')).toBeAttached();
+  await expect(page.locator('[data-testid="repeated-3"] .piscan-candle')).toBeAttached();
+  // Each element may have multiple badges (one per finding type) but they
+  // must be the same badges across all 3 repeated elements
+  const badges1 = await page
+    .locator('[data-testid="repeated-1"] .piscan-badge')
+    .allTextContents();
+  const badges2 = await page
+    .locator('[data-testid="repeated-2"] .piscan-badge')
+    .allTextContents();
+  const badges3 = await page
+    .locator('[data-testid="repeated-3"] .piscan-badge')
+    .allTextContents();
+  expect(badges1.length).toBeGreaterThanOrEqual(1);
+  expect(badges1).toEqual(badges2);
+  expect(badges2).toEqual(badges3);
 });
 
 test("clearMarks removes marks and candles when switching to clean page", async ({

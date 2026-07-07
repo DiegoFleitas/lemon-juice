@@ -16,6 +16,7 @@
     collectRoots,
     clearMarks,
     elementHidesText,
+    elementIsA11yHidden,
     directText,
     snippet,
     colorFor,
@@ -134,25 +135,60 @@
         if (!ownText) return;
         const reasons = elementHidesText(el);
         if (reasons.length) {
+          const isA11yMarked = elementIsA11yHidden(el);
+          const baseSev = isA11yMarked ? "low" : "medium";
           // Respect existing mark from Pass 1: don't downgrade the outline color.
           const existingSev = el.getAttribute(MARK_ATTR);
           const sev = existingSev
-            ? S.worstSeverity([{ severity: existingSev }, { severity: "medium" }])
-            : "medium";
+            ? S.worstSeverity([{ severity: existingSev }, { severity: baseSev }])
+            : baseSev;
           if (!el.dataset.piscanId) el.dataset.piscanId = `pi-${nextElementId++}`;
           elementById.set(el.dataset.piscanId, el);
           highlightElement(el, colorFor(sev), sev);
           makeHighlightVisible(el);
           items.push({
             type: "css-hidden",
-            severity: "medium",
+            severity: baseSev,
             reasons,
+            ...(isA11yMarked ? { likelyA11y: true } : {}),
             context: snippet(ownText),
             targetId: el.dataset.piscanId,
           });
         }
       });
     }
+
+    // Dedup: findings with the same type + signal + surrounding text are the
+    // same content repeated across elements (e.g. a nav item in 5 <li>s) —
+    // collapse them in the list, but keep every occurrence highlighted on
+    // the page and record how many there were so a collapsed entry doesn't
+    // read as if it's the only occurrence.
+    function findingIdentityKey(item) {
+      const fingerprint =
+        item.type === "instruction-phrase" || item.type === "control-token"
+          ? item.pattern
+          : item.type === "invisible" || item.type === "unicode-tag"
+            ? item.hex
+            : item.type === "css-hidden"
+              ? item.reasons.join(",")
+              : (item.decoded ?? "");
+      return `${item.type}:${fingerprint}:${item.context}`;
+    }
+    const seenItems = new Map();
+    const deduped = [];
+    for (const item of items) {
+      const key = findingIdentityKey(item);
+      const existing = seenItems.get(key);
+      if (existing) {
+        existing.matchCount = (existing.matchCount || 1) + 1;
+        if (item.targetId) existing.targetIds.push(item.targetId);
+      } else {
+        item.targetIds = item.targetId ? [item.targetId] : [];
+        seenItems.set(key, item);
+        deduped.push(item);
+      }
+    }
+    items.splice(0, items.length, ...deduped);
 
     const SEV_ORDER = { high: 0, medium: 1, low: 2 };
     items.sort((a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity]);
@@ -161,18 +197,22 @@
     const MAX_ITEMS = 200;
     const capped = items.slice(0, MAX_ITEMS);
 
-    // Add numbered badges on elements
+    // Add numbered badges on elements — supports multiple elements per
+    // item after dedup (targetIds from the dedup loop, or targetId fallback
+    // for items that predate the dedup change).
     for (let i = capped.length - 1; i >= 0; i--) {
       const item = capped[i];
-      if (item.targetId) {
-        const el = elementById.get(item.targetId);
-        if (el) {
-          const badge = el.ownerDocument.createElement("sup");
-          badge.className = "piscan-badge";
-          badge.textContent = item.index;
-          badge.style.cssText = "color:#000;font-size:10px;margin:0 1px;";
-          el.insertBefore(badge, el.firstChild);
-        }
+      for (const id of item.targetIds && item.targetIds.length
+        ? item.targetIds
+        : [item.targetId]) {
+        if (!id) continue;
+        const el = elementById.get(id);
+        if (!el) continue;
+        const badge = el.ownerDocument.createElement("sup");
+        badge.className = "piscan-badge";
+        badge.textContent = item.index;
+        badge.style.cssText = "color:#000;font-size:10px;margin:0 1px;";
+        el.insertBefore(badge, el.firstChild);
       }
     }
 

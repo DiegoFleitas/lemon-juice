@@ -20,19 +20,15 @@
     document.querySelectorAll(".piscan-badge").forEach((n) => n.remove());
   }
 
-  function elementHidesText(el) {
-    const cs = getComputedStyle(el);
-    const reasons = [];
-    const fontPx = parseFloat(cs.fontSize);
-    if (fontPx <= 1) reasons.push("font-size " + cs.fontSize);
-    if (cs.opacity !== "" && parseFloat(cs.opacity) === 0) reasons.push("opacity:0");
-    const left = parseFloat(cs.left);
-    const top = parseFloat(cs.top);
-    if (cs.position === "absolute" && (left < -1000 || top < -1000))
-      reasons.push("off-screen position");
-    if (parseFloat(cs.textIndent) < -1000) reasons.push("negative text-indent");
-    // Resolve effective background: walk ancestors when element's bg is transparent
-    let bg = cs.backgroundColor;
+  // Resolve the effective background color of an element: walk up the
+  // ancestor chain while the computed background is transparent, then fall
+  // back to <body>, then <html>, then white. Shared between elementHidesText
+  // (below) and scan.js's makeHighlightVisible, which both need to know what
+  // an element visually sits on top of. `ownBg` is passed in rather than
+  // recomputed here since callers already have a getComputedStyle(el) result
+  // for other properties, and this runs per-element across a full-page walk.
+  function resolveBackgroundColor(el, ownBg) {
+    let bg = ownBg;
     if (!bg || bg === "rgba(0, 0, 0, 0)") {
       let p = el.parentElement;
       while (p && p !== document.documentElement) {
@@ -49,6 +45,21 @@
     if (!bg || bg === "rgba(0, 0, 0, 0)")
       bg = getComputedStyle(document.documentElement).backgroundColor;
     if (!bg || bg === "rgba(0, 0, 0, 0)") bg = "rgb(255, 255, 255)";
+    return bg;
+  }
+
+  function elementHidesText(el) {
+    const cs = getComputedStyle(el);
+    const reasons = [];
+    const fontPx = parseFloat(cs.fontSize);
+    if (fontPx <= 1) reasons.push("font-size " + cs.fontSize);
+    if (cs.opacity !== "" && parseFloat(cs.opacity) === 0) reasons.push("opacity:0");
+    const left = parseFloat(cs.left);
+    const top = parseFloat(cs.top);
+    if (cs.position === "absolute" && (left < -1000 || top < -1000))
+      reasons.push("off-screen position");
+    if (parseFloat(cs.textIndent) < -1000) reasons.push("negative text-indent");
+    const bg = resolveBackgroundColor(el, cs.backgroundColor);
     if (bg && bg !== "rgba(0, 0, 0, 0)") {
       const tl = luminance(cs.color),
         bl = luminance(bg);
@@ -61,17 +72,6 @@
     const m = str.match(/(\d+)/g);
     if (!m || m.length < 3) return 0;
     return 0.299 * +m[0] + 0.587 * +m[1] + 0.114 * +m[2];
-  }
-
-  function sameColor(a, b) {
-    return rgb(a) === rgb(b);
-  }
-
-  function rgb(str) {
-    const m = str.match(/rgba?\(([^)]+)\)/);
-    if (!m) return str;
-    const parts = m[1].split(",").map((x) => parseFloat(x));
-    return parts.slice(0, 3).join(",");
   }
 
   function highlightElement(el, color, severity) {
@@ -105,8 +105,7 @@
     clearMarks,
     elementHidesText,
     luminance,
-    sameColor,
-    rgb,
+    resolveBackgroundColor,
     highlightElement,
     directText,
     snippet,

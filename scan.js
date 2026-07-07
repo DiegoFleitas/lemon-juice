@@ -20,6 +20,7 @@
     colorFor,
     highlightElement,
     luminance,
+    resolveBackgroundColor,
   } = globalThis.__PIScannerHelpers;
 
   function contrastingColor(bg) {
@@ -51,23 +52,7 @@
       savedOverrides.textIndent = el.style.textIndent || "";
       el.style.textIndent = "0";
     }
-    let bg = cs.backgroundColor;
-    if (!bg || bg === "rgba(0, 0, 0, 0)") {
-      let p = el.parentElement;
-      while (p && p !== document.documentElement) {
-        const pBg = getComputedStyle(p).backgroundColor;
-        if (pBg && pBg !== "rgba(0, 0, 0, 0)") {
-          bg = pBg;
-          break;
-        }
-        p = p.parentElement;
-      }
-    }
-    if (!bg || bg === "rgba(0, 0, 0, 0)")
-      bg = getComputedStyle(document.body).backgroundColor;
-    if (!bg || bg === "rgba(0, 0, 0, 0)")
-      bg = getComputedStyle(document.documentElement).backgroundColor;
-    if (!bg || bg === "rgba(0, 0, 0, 0)") bg = "rgb(255, 255, 255)";
+    const bg = resolveBackgroundColor(el, cs.backgroundColor);
     if (bg && bg !== "rgba(0, 0, 0, 0)") {
       const tl = luminance(cs.color),
         bl = luminance(bg);

@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { snippet, colorFor, sameColor, rgb, luminance } = require("../scan-helpers.js");
+const { snippet, colorFor, luminance } = require("../scan-helpers.js");
 
 test("snippet: short text is returned as-is", () => {
   assert.equal(snippet("hello world"), "hello world");
@@ -33,30 +33,6 @@ test("colorFor: medium severity returns amber", () => {
 
 test("colorFor: low severity returns blue", () => {
   assert.equal(colorFor("low"), "#3b82f6");
-});
-
-test("rgb: extracts RGB components from rgba string", () => {
-  assert.equal(rgb("rgba(255, 0, 0, 0.5)"), "255,0,0");
-});
-
-test("rgb: extracts RGB components from rgb string", () => {
-  assert.equal(rgb("rgb(10, 20, 30)"), "10,20,30");
-});
-
-test("rgb: returns input as-is for non-rgba strings", () => {
-  assert.equal(rgb("transparent"), "transparent");
-});
-
-test("sameColor: detects matching colors", () => {
-  assert.equal(sameColor("rgb(255,255,255)", "rgb(255,255,255)"), true);
-});
-
-test("sameColor: detects different colors", () => {
-  assert.equal(sameColor("rgb(255,0,0)", "rgb(0,255,0)"), false);
-});
-
-test("sameColor: ignores alpha difference", () => {
-  assert.equal(sameColor("rgba(255,255,255,0.3)", "rgb(255,255,255)"), true);
 });
 
 test("luminance: pure white returns 255", () => {

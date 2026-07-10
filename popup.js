@@ -109,29 +109,31 @@ async function scrollTo(targetId) {
 const FOLD_THRESHOLD = 5;
 
 function typeLabel(item) {
-  return item.type === "unicode-tag"
-    ? `Invisible ASCII-smuggling character${item.decoded ? ` → decodes to: “${item.decoded}”` : ""}`
-    : item.type === "invisible"
-      ? `Invisible character: ${item.name} (${item.hex})`
-      : item.type === "encoded-base64"
-        ? `Encoded blob${item.likelyJwt ? " (looks like a JWT)" : ""} → “${item.decoded}”`
-        : item.type === "encoded-percent"
-          ? `Percent-encoded blob → “${item.decoded}”`
-          : item.type === "encoded-hex-escape"
-            ? `Hex-escaped blob → “${item.decoded}”`
-            : item.type === "encoded-spaced-hex"
-              ? `Space-separated hex byte blob → “${item.decoded}”`
-              : item.type === "variation-selector-smuggling"
-                ? `Hidden variation-selector payload → “${item.decoded}”`
-                : item.type === "sneaky-bits-smuggling"
-                  ? `Hidden invisible-bit-encoded payload → “${item.decoded}”`
-                  : item.type === "control-token"
-                    ? `LLM chat-template control token: “${item.match}”`
-                    : item.type === "css-hidden"
-                      ? `Visually hidden text (${item.reasons.join(", ")})${item.likelyA11y ? " — looks like accessibility markup, downgraded" : ""}`
-                      : item.type === "instruction-phrase"
-                        ? `Instruction-like phrase${item.normalized ? " (revealed after removing invisible characters)" : ""}: “${item.match}”`
-                        : item.type;
+  return (
+    {
+      "unicode-tag": (i) =>
+        `Invisible ASCII-smuggling character${i.decoded ? ` → decodes to: “${i.decoded}”` : ""}`,
+      invisible: (i) => `Invisible character: ${i.name} (${i.hex})`,
+      "encoded-base64": (i) =>
+        `Encoded blob${i.likelyJwt ? " (looks like a JWT)" : ""} → “${i.decoded}”`,
+      "encoded-percent": (i) => `Percent-encoded blob → “${i.decoded}”`,
+      "encoded-hex-escape": (i) => `Hex-escaped blob → “${i.decoded}”`,
+      "encoded-spaced-hex": (i) => `Space-separated hex byte blob → “${i.decoded}”`,
+      "encoded-unicode-escape": (i) => `\\uXXXX-escaped blob → “${i.decoded}”`,
+      "encoded-html-entity": (i) => `HTML-entity-encoded blob → “${i.decoded}”`,
+      "variation-selector-smuggling": (i) =>
+        `Hidden variation-selector payload → “${i.decoded}”`,
+      "sneaky-bits-smuggling": (i) =>
+        `Hidden invisible-bit-encoded payload → “${i.decoded}”`,
+      "control-token": (i) => `LLM chat-template control token: “${i.match}”`,
+      "css-hidden": (i) =>
+        `Visually hidden text (${i.reasons.join(", ")})${i.likelyA11y ? " — looks like accessibility markup, downgraded" : ""}`,
+      "instruction-phrase": (i) =>
+        `Instruction-like phrase${i.normalized ? " (revealed after removing invisible characters)" : ""}${i.attrName ? ` (in ${i.attrName})` : ""}: “${i.match}”`,
+      "excessive-combining-marks": (i) =>
+        `Excessive combining diacritical marks (${i.count} marks on one character)`,
+    }[item.type]?.(item) ?? `${item.type}${item.attrName ? ` (in ${item.attrName})` : ""}`
+  );
 }
 
 // `item` is the representative finding shown (first occurrence for a folded
@@ -252,3 +254,5 @@ function setBadge(r, tabId) {
 
 els.rescan.addEventListener("click", scan);
 scan();
+
+if (typeof module !== "undefined" && module.exports) module.exports = { typeLabel };

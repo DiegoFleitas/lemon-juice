@@ -16,6 +16,12 @@
     "extension_pages": "script-src 'self'; object-src 'self'"
   },
   "permissions": ["activeTab", "scripting"],
+  "web_accessible_resources": [
+    {
+      "resources": ["detectors.js", "scan-helpers.js", "scan.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "action": {
     "default_title": "Lemon Juice — reveal hidden text on this page",
     "default_popup": "popup.html"

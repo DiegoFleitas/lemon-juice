@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.3.0 - 2026-07-10
+
+- fix(detectors): safe-guard decodeHtmlEntities against RangeError (f4160bc)
+- fix(detectors): fix ReDoS in HTML_ENTITY_RUN regex (fe33358)
+- fix(scan-helpers): replace dead clip-path rect() check with legacy clip detection (f66294e)
+- docs: add broader-detection-coverage plan (1c0edeb)
+- test(e2e): add fixtures and e2e tests for all new detectors (e09c681)
+- feat(popup): refactor typeLabel to object lookup, add fixture tests (18b21d4)
+- feat(detectors): add unicode-escape, html-entity, combining-marks, homoglyph, and typoglycemia detectors (a327337)
+- feat(scan): scan aria-label and title attributes for hidden text (3ba495c)
+- feat(scan): detect transform/clip-path css hiding techniques (f633453)
+- fix(manifest): declare injected scripts web-accessible for strict-CSP pages (6bc7e83)
+- docs: condense verbose code comments (2615a29)
+
 ## v0.2.0 - 2026-07-10
 
 - chore: remove product name from comments (afaa2a7)

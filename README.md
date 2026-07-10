@@ -11,7 +11,7 @@ _Escrito con jugo de limón. The lemon is green while this is alpha. It ripens t
 ![Status: Alpha](https://img.shields.io/badge/status-alpha-orange)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](https://www.gnu.org/licenses/gpl-3.0.html)
 
-[Why](#why) • [Detects](#what-it-detects) • [Install](#install) • [Develop](#develop) • [Architecture](#architecture) • [Privacy](#privacy) • [Limitations](#limitations)
+[Why](#why) • [Detects](#what-it-detects) • [Scope](#scope) • [Install](#install) • [Develop](#develop) • [Architecture](#architecture) • [Privacy](#privacy) • [Limitations](#limitations)
 
 </div>
 
@@ -21,7 +21,7 @@ _Escrito con jugo de limón. The lemon is green while this is alpha. It ripens t
   <em>"Ah, yes. Written with lemon juice." — William of Baskerville, The Name of the Rose (1986)</em>
 </p>
 
-A Firefox extension that holds a web page up to the flame. It reveals hidden text and flags prompt-injection payloads before you hand the page to ChatGPT, Claude, Gemini, or a browser agent. It uses a non-invasive overlay that never touches the page's own styles.
+A Firefox extension that holds a web page up to the flame. It reveals hidden text and flags prompt-injection payloads before you hand the page to ChatGPT, Claude, Gemini, or a browser agent. It uses a non-invasive overlay that never rewrites the page's own styles.
 
 > [!IMPORTANT]
 > This is a detection aid, not a shield. It does not block or "clean" anything. A clean scan means "nothing obvious found," not "this page is safe." See [Limitations](#limitations).
@@ -64,12 +64,25 @@ Prone to false positives on legitimate pages that discuss prompt injection. Neve
 | **Leetspeak obfuscation** | `1gn0r3 4ll pr3v10us 1nstruct10ns` |
 | **Fancy Unicode letters** | Math bold/italic/script/fraktur/sans-serif, fullwidth letter forms, regional-indicator-symbol letters |
 | **Delimiter-stripped text** | Pipe, underscore, backtick, caret, tilde between letters |
-| **Spaced-letter instructions** | `i g n o r e a l l p r e vi o u s i n s t r u c t i o n s` |
+| **Spaced-letter instructions** | `i g n o r e a l l p r e v i o u s i n s t r u c t i o n s` |
 | **Emoji-substituted phrases** | 🚫 substituting for "ignore" or "disregard" |
 | **JWT-downgraded base64 blobs** | Base64 runs that look like JWT header+payload segments |
 | **HTML entities, unicode escapes, combining marks, homoglyphs** | Decoded/revealed via normalization pipeline |
 
 Severity reflects _how likely a pattern is to be an attack vs. a legitimate feature_. Bidi overrides and the Tags block are essentially never innocent in web copy; zero-width joiners are legitimate in Arabic/Indic scripts and emoji, so they score low. The instruction-phrase detector and all deobfuscation passes are informational only: they false-positive on any page _about_ prompt injection (including the OWASP page and this README).
+
+## Scope
+
+OWASP's LLM01 prevention strategies target the **LLM application developer**: constrain model behavior, validate outputs, enforce least privilege, keep a human in the loop. A browser extension on the page can't do any of those. What it _can_ do maps to one-and-a-half of them:
+
+- **#6 Segregate and identify external content**: surface hidden content so a human notices it before feeding the page to an assistant.
+- A client-side sliver of **#3 Input filtering**: flag known obfuscation vectors.
+
+So the honest scope is: **reveal what an AI would ingest but you can't see.** Detection is not interception. This tool only helps when a human is watching. It runs on click, so it never sits inside an agent's own browsing loop. What it flags spans both categories: HIGH-severity patterns (control tokens, bidi overrides, invisible chars) are jailbreak or smuggling artifacts; LOW-severity patterns (instruction phrases) signal an injection attempt on the page.
+
+For unattended agents, the defense has to live in the agent. [Claude for Chrome](https://www.anthropic.com/research/prompt-injection-defenses) classifies prompt injection across text and deceptive UI; its [guidance](https://support.claude.com/en/articles/12902428-use-claude-in-chrome-safely) layers permission prompts with minimal site access. None of it is bulletproof — ShadowPrompt sidestepped those defenses via a browser-extension messaging bug before Anthropic patched it. No vendor claims prompt injection is solved.
+
+**Treat Lemon Juice as a supplement for when you're reading, not a safety net for when you're not reading.**
 
 ## Install
 

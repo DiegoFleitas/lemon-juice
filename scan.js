@@ -125,6 +125,29 @@
           });
         }
       });
+
+      // Pass 3: attribute-based text — aria-label, title (never rendered as page text).
+      const ATTR_NAMES = ["aria-label", "title"];
+      scope.querySelectorAll("*").forEach((el) => {
+        if (SKIP_TAGS.has(el.tagName)) return;
+        for (const attrName of ATTR_NAMES) {
+          const val = el.getAttribute(attrName);
+          if (!val || val.length < 20) continue;
+          const findings = S.scanText(val);
+          if (!findings.length) continue;
+          const worst = S.worstSeverity(findings);
+          if (!el.dataset.piscanId) el.dataset.piscanId = `pi-${nextElementId++}`;
+          elementById.set(el.dataset.piscanId, el);
+          highlightElement(el, worst);
+          for (const f of findings)
+            items.push({
+              ...f,
+              context: snippet(`[${attrName}] ${val}`),
+              targetId: el.dataset.piscanId,
+              attrName,
+            });
+        }
+      });
     }
 
     // full = dedup key (type+signal+context), group = fold key (type+signal only).
@@ -133,6 +156,7 @@
     // docs/plans/2026-07-07-false-positive-fatigue.md, Task 4). groupKey is
     // presentation-only — popup.js uses it to fold near-dup clusters at render.
     function findingIdentityKey(item) {
+      const signal = item.attrName ? `${item.type}:${item.attrName}` : item.type;
       const fingerprint =
         item.type === "instruction-phrase" || item.type === "control-token"
           ? item.pattern
@@ -142,8 +166,8 @@
               ? item.reasons.join(",")
               : (item.decoded ?? "");
       return {
-        full: `${item.type}:${fingerprint}:${item.context}`,
-        group: `${item.type}:${fingerprint}`,
+        full: `${signal}:${fingerprint}:${item.context}`,
+        group: `${signal}:${fingerprint}`,
       };
     }
     const seenItems = new Map();

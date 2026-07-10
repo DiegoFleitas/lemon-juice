@@ -409,7 +409,7 @@
     /\bdisregard\s+(the\s+)?(previous|above|system)\b/i,
     /\byou\s+are\s+now\b/i,
     /\bnew\s+instructions?\s*:/i,
-    /^\s*(system|assistant|user)\s*:/im,
+    /^\s*(system|assistant|user|human|ai)\s*:/im,
     /\bdo\s+not\s+(tell|inform|mention\s+to)\s+the\s+user\b/i,
     // --- expanded corpus (jailbreak/override phrasing) ---
     /\bforget\s+(all\s+)?(previous|prior|earlier)\s+(instructions|context|prompts?)\b/i,
@@ -462,6 +462,23 @@
     /\brepeat\s+(?:the\s+)?(?:text|words?)\s+above\s+verbatim\b/i,
     /\bprint\s+your\s+(?:initial\s+)?instructions?\s+word\s+for\s+word\b/i,
     /\bencode\s+your\s+(?:instructions?|system\s+prompt)\s+(?:in|as)\s+base\s*64\b/i,
+
+    // --- Chain-of-thought (CoT) hijacking phrases (OWASP #10) ---
+    // Legitimate in educational content but exploited to lower the model's guard:
+    // "let's think step by step" then comply with anything. Informational only.
+    /\blet's\s+(?:think|reason|work)\s+(?:step\s+by\s+step|through\s+this)\b/i,
+    /\b(?:think|reason)\s+step\s+by\s+step\b/i,
+    /\bthink\s+carefully\s*[,;:.!?]/i,
+    // "take a deep breath and think/reason/work…" — the standalone phrase is
+    // common in self-care/meditation content; require the jailbreak-paired "and".
+    /\btake\s+a\s+deep\s+breath\s+and\s+(?:think|reason|work|solve|answer|respond|approach)\b/i,
+
+    // --- Delimiter-fence markers ---
+    // "--- BEGIN INSTRUCTIONS ---" / "--- END INSTRUCTIONS ---" section fences,
+    // used to wall off injected instructions from the surrounding context.
+    // No leading \b — fence markers can appear at line start after whitespace.
+    /---\s*(?:BEGIN|START)\s+(?:INSTRUCTIONS?|PROMPT|OVERRIDE|RULES|SYSTEM)\s*---/i,
+    /---\s*(?:END|STOP)\s+(?:INSTRUCTIONS?|PROMPT|OVERRIDE|RULES|SYSTEM)\s*---/i,
   ];
 
   // Spaced-letter patterns (e.g. "i g n o r e") run as a separate pass in

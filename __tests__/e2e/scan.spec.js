@@ -483,3 +483,25 @@ test("fancy-unicode: detects instructions in math-bold, fullwidth, and regional-
   const phrases = result.items.filter((i) => i.type === "instruction-phrase");
   expect(phrases.length).toBe(3);
 });
+
+test("cot-delimiter-fewshot: detects CoT, delimiter, Human:/AI: patterns", async ({
+  page,
+}) => {
+  const result = await injectAndScan(page, "cot-delimiter-fewshot.html");
+  const phrases = result.items.filter((i) => i.type === "instruction-phrase");
+  // 10 expected matches: CoT patterns overlap (e.g. "think step by step"
+  // fires the standalone + let's + take-a-deep-breath forms), plus 2 delimiter
+  // fences and 2 role prefixes.
+  expect(phrases.length).toBe(10);
+  for (const p of phrases) {
+    expect(p.severity).toBe("low");
+  }
+  // Benign entries must NOT produce findings
+  const benign = phrases.filter(
+    (p) =>
+      p.match &&
+      (p.match.includes("gentle reminders") || p.match.includes("Project Overview"))
+  );
+  expect(benign.length).toBe(0);
+  expect(result.worst).toBe("low");
+});

@@ -422,3 +422,64 @@ test("clearMarks removes marks and candles when switching to clean page", async 
   expect(await page.locator(".piscan-candle").count()).toBe(0);
   expect(await page.locator(".piscan-badge").count()).toBe(0);
 });
+
+test("aria-label and title attributes are scanned for hidden text", async ({ page }) => {
+  const result = await injectAndScan(page, "attribute-injection.html");
+  const attrPhrases = result.items.filter((i) => i.attrName);
+  expect(attrPhrases.length).toBe(2);
+  for (const item of attrPhrases) {
+    expect(item.attrName).toMatch(/^aria-label$|^title$/);
+    expect(item.context).toMatch(/^\[(aria-label|title)\]/);
+  }
+});
+
+test("css-hidden-extras: transform/clip-path hiding techniques are detected", async ({
+  page,
+}) => {
+  const result = await injectAndScan(page, "css-hidden-extras.html");
+  const cssHidden = result.items.filter((i) => i.type === "css-hidden");
+  expect(cssHidden.length).toBe(3);
+  expect(cssHidden.some((i) => i.reasons.includes("transform off-screen"))).toBe(true);
+  expect(cssHidden.some((i) => i.reasons.includes("transform scale(0)"))).toBe(true);
+  expect(cssHidden.some((i) => i.reasons.includes("clip-path hides content"))).toBe(true);
+  for (const item of cssHidden) expect(item.severity).toBe("medium");
+});
+
+test("typoglycemia: reveals instructions with scrambled inner letters", async ({
+  page,
+}) => {
+  const result = await injectAndScan(page, "typoglycemia.html");
+  expect(result.items.filter((i) => i.type === "instruction-phrase").length).toBe(1);
+});
+
+test("unicode-escape: detects \\uXXXX-encoded instructions", async ({ page }) => {
+  const result = await injectAndScan(page, "unicode-escape.html");
+  expect(result.items.filter((i) => i.type === "encoded-unicode-escape").length).toBe(1);
+});
+
+test("html-entities: detects hex HTML entity-encoded instructions", async ({ page }) => {
+  const result = await injectAndScan(page, "html-entities.html");
+  expect(result.items.filter((i) => i.type === "encoded-html-entity").length).toBe(1);
+});
+
+test("combining-marks: flags excessive diacritical marks", async ({ page }) => {
+  const result = await injectAndScan(page, "combining-marks.html");
+  expect(result.items.filter((i) => i.type === "excessive-combining-marks").length).toBe(
+    1
+  );
+});
+
+test("homoglyphs: detects instructions obfuscated by Cyrillic/Greek homoglyphs", async ({
+  page,
+}) => {
+  const result = await injectAndScan(page, "homoglyphs.html");
+  expect(result.items.filter((i) => i.type === "instruction-phrase").length).toBe(1);
+});
+
+test("fancy-unicode: detects instructions in math-bold, fullwidth, and regional-indicator text", async ({
+  page,
+}) => {
+  const result = await injectAndScan(page, "fancy-unicode.html");
+  const phrases = result.items.filter((i) => i.type === "instruction-phrase");
+  expect(phrases.length).toBe(3);
+});

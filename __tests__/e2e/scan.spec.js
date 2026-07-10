@@ -37,6 +37,27 @@ test("plaintext page produces no css-hidden false positives", async ({ page }) =
   expect(result.items).toEqual([]);
 });
 
+test("dark mode plaintext page does not flip text color", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  const result = await injectAndScan(page, "plaintext-dark.html");
+  // Pass 1 should find instruction phrases in the content
+  expect(result.count).toBeGreaterThan(0);
+  expect(result.bySeverity.low).toBeGreaterThan(0);
+  // No CSS-hidden findings from Pass 2
+  const cssHidden = result.items.filter((i) => i.type === "css-hidden");
+  expect(cssHidden.length).toBe(0);
+  // The pre element should not have its color overridden
+  const preColor = await page.evaluate(() => {
+    const pre = document.querySelector("pre");
+    return { saved: pre.dataset.piscanSaved || "", inline: pre.style.color };
+  });
+  // parse piscanSaved if set, make sure 'color' is not among saved overrides
+  if (preColor.saved) {
+    const saved = JSON.parse(preColor.saved);
+    expect(saved.color).toBeUndefined();
+  }
+});
+
 test("detects invisible characters with correct severity", async ({ page }) => {
   const result = await injectAndScan(page, "invisible-chars.html");
   const invis = result.items.filter((i) => i.type === "invisible");

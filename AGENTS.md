@@ -91,7 +91,7 @@ Five files, strict separation between pure logic and DOM:
   falling back to `<body>`/`<html>`, and returns `null` when nothing paints a
   real background. It deliberately does **not** guess the system `Canvas`
   color in that case: `Canvas` reflects the _browser_ theme, not what the page
-  actually paints, so a page that self-themes dark (Notion, etc.) viewed in a
+  actually paints, so a page that self-themes dark viewed in a
   light-mode browser would report a white canvas behind its own white text and
   trip a false `"text color = background"` match. `elementHidesText` therefore
   runs the color-equality reason **only against a real resolved background**

@@ -83,7 +83,7 @@
   // when the only thing behind the text is the browser's viewport canvas.
   // We deliberately do NOT probe the system `Canvas` keyword here: it reflects
   // the *browser* theme, not what the page actually paints, so an app that
-  // self-themes dark on a light-mode browser (Notion, etc.) would report a
+  // self-themes dark on a light-mode browser would report a
   // white canvas behind its own white-on-dark text and trip a false
   // "text color = background" match (see docs/plans, dark-page FP fix).
   // Callers must treat null as "background unknown" rather than guessing.

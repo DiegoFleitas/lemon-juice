@@ -1,14 +1,3 @@
-/**
- * detectors.js — pure, DOM-agnostic detection logic.
- *
- * Kept free of any `document`/`window` access on purpose: everything here
- * takes a string in and returns findings out, so it unit-tests in Node the
- * same way your dmca-redirect __tests__ do. The DOM walking + highlighting
- * lives in scan.js; this file is just the brain.
- *
- * Exposed both as a global (globalThis.PIScanner) for injection as a plain
- * content-script file, and as module.exports for the Node test runner.
- */
 (function () {
   "use strict";
 
@@ -67,12 +56,7 @@
     return cp >= 0xe0000 && cp <= 0xe007f;
   }
 
-  /**
-   * Scan a string for invisible/control code points.
-   * Iterates by CODE POINT (for…of), not char code — the Tags block lives in
-   * the astral plane (> U+FFFF) and would be split by charCodeAt.
-   * @returns {Array<{type,codePoint,hex,name,severity,index,decoded?}>}
-   */
+  // Iterates by code point (for...of) — Tags block is in the astral plane (> U+FFFF).
   function scanInvisible(text) {
     const findings = [];
     let index = 0;
@@ -113,9 +97,7 @@
   }
 
   // --- 2. Encoded-payload heuristic (OWASP scenario #9) ----------------------
-  // Long base64-looking runs embedded in prose are a classic obfuscation.
-  // We decode and only flag if the result looks like readable ASCII, to avoid
-  // firing on hashes, JWTs in code samples, data-URIs a user expects, etc.
+  // Only flag if decoded output looks like readable ASCII (avoids hashes, data-URIs, etc.).
   const BASE64_RUN = /[A-Za-z0-9+/]{24,}={0,2}/g;
 
   // JWTs (header.payload.signature, each segment base64) decode cleanly and are
@@ -194,10 +176,7 @@
     return printable / s.length > 0.85;
   }
 
-  // --- 2b. Percent-encoding / hex-escape heuristics (same idea as base64) ---
-  // Same rationale as scanEncoded: long runs of %XX or \xXX escapes embedded in
-  // prose are an obfuscation vector; only flag if the decoded bytes look like
-  // readable text.
+  // --- 2b. Percent-encoding / hex-escape heuristics --------------------------
   const PERCENT_RUN = /(?:%[0-9A-Fa-f]{2}){6,}/g;
   const HEX_ESCAPE_RUN = /(?:\\x[0-9A-Fa-f]{2}){6,}/g;
 
@@ -256,13 +235,8 @@
   }
 
   // --- 2c. Space-separated hex byte smuggling ---------------------------------
-  // Distinct from \xXX escapes above: raw hex byte pairs separated by
-  // whitespace with no \x prefix at all, e.g. "49 67 6e 6f 72 65" == "Ignore".
-  // Same decode-then-verify-printability gate as the other encoded-blob
-  // detectors — this is what keeps ordinary space-separated numbers (phone
-  // numbers, IDs, version strings) from false-positiving: interpreted as hex
-  // bytes they decode to mostly non-printable garbage that looksLikeText
-  // rejects, whereas an actual smuggled ASCII payload decodes clean.
+  // "49 67 6e 6f 72 65" → "Ignore". The looksLikeText gate keeps ordinary
+  // space-separated numbers from false-positiving (they decode to garbage).
   const SPACED_HEX_RUN = /\b(?:[0-9A-Fa-f]{2}\s+){5,}[0-9A-Fa-f]{2}\b/g;
 
   function decodeSpacedHex(s) {
@@ -356,11 +330,8 @@
     /\bencode\s+your\s+(?:instructions?|system\s+prompt)\s+(?:in|as)\s+base\s*64\b/i,
   ];
 
-  // Spaced-letter instruction patterns — match text where each character is
-  // separated by one or more spaces (e.g. "i g n o r e"). These are NOT in
-  // INSTRUCTION_PATTERNS because that array feeds scanInstructions() used in
-  // multiple passes; putting them there would match on raw text and produce
-  // duplicate findings. Instead they run as a separate pass in scanText().
+  // Spaced-letter patterns (e.g. "i g n o r e") run as a separate pass in
+  // scanText() so they don't duplicate findings with scanInstructions().
   const SPACED_INSTRUCTION_PATTERNS = [
     // "i g n o r e a l l p r e v i o u s i n s t r u c t i o n s"
     /\bi\s+g\s+n\s+o\s+r\s+e\s+(?:a\s+l\s+l\s+)?(?:p\s+r\s+e\s+v\s+i\s+o\s+u\s+s|p\s+r\s+i\s+o\s+r|a\s+b\s+o\s+v\s+e)\s+(?:i\s+n\s+s\s+t\s+r\s+u\s+c\s+t\s+i\s+o\s+n\s+s?|p\s+r\s+o\s+m\s+p\s+t\s+s?)\b/i,
@@ -388,14 +359,9 @@
   }
 
   // --- 4. Variation-selector smuggling ("emoji byte-smuggling") -------------
-  // Variation Selectors (U+FE00–U+FE0F) encode bytes 0-15; the Supplement
-  // (U+E0100–U+E01EF) encodes bytes 16-255. Attaching a long run of these after
-  // a base character (typically an emoji) hides an arbitrary UTF-8 payload.
-  // Legitimate use is exactly ONE selector after ONE base char (e.g. the U+FE0F
-  // "emoji presentation" selector in ❤️) — a run that short decodes to too few
-  // bytes to pass looksLikeText's length gate, so that common case won't
-  // false-positive. Practically never legitimate at run length, so HIGH like
-  // the Tags block.
+  // VS1-16 (U+FE00–U+FE0F) → bytes 0-15, VS17-256 (U+E0100–U+E01EF) → 16-255.
+  // A legitimate single-emojification selector (e.g. ❤️'s U+FE0F) decodes to
+  // too few bytes to pass looksLikeText's length gate — so it won't FP.
   function variationSelectorByte(cp) {
     if (cp >= 0xfe00 && cp <= 0xfe0f) return cp - 0xfe00; // VS1-16 -> byte 0-15
     if (cp >= 0xe0100 && cp <= 0xe01ef) return cp - 0xe0100 + 16; // VS17-256 -> byte 16-255
@@ -456,14 +422,9 @@
   }
 
   // --- 5. Sneaky Bits smuggling (invisible-times/invisible-plus bit encoding) -
-  // Encodes arbitrary bytes as a run of two invisible math operators: U+2062
-  // (INVISIBLE TIMES) = bit 0, U+2064 (INVISIBLE PLUS) = bit 1, MSB-first, 8
-  // bits per byte, then the byte sequence is UTF-8 decoded. Confirmed against
-  // Embrace The Red's "Sneaky Bits" writeup (embracethered.com/blog/posts/2025/
-  // sneaky-bits-and-ascii-smuggler/): the letter 'A' (0x41 = 01000001) encodes
-  // as U+2062 U+2064 U+2062 U+2062 U+2062 U+2062 U+2062 U+2064. Neither
-  // character has any legitimate standalone use in web prose, so like the Tags
-  // block this is essentially never innocent — HIGH severity.
+  // U+2062 (INVISIBLE TIMES) = bit 0, U+2064 (INVISIBLE PLUS) = bit 1,
+  // MSB-first, 8 bits/byte, then UTF-8 decoded. Never legitimate in prose.
+  // Ref: embracethered.com/blog/posts/2025/sneaky-bits-and-ascii-smuggler/
   function sneakyBitValue(cp) {
     if (cp === 0x2062) return 0;
     if (cp === 0x2064) return 1;
@@ -521,16 +482,8 @@
   }
 
   // --- 6. LLM chat-template control-token smuggling --------------------------
-  // Literal delimiter tokens LLM serving frameworks use to mark turn/role
-  // boundaries: ChatML's <|im_start|>/<|im_end|>, Llama's [INST]/[/INST], a
-  // generic </system> closer, and a plain-text prompt-boundary marker. If a
-  // page contains one of these verbatim, a model that later ingests the
-  // page's text risks parsing it as an actual turn boundary rather than as
-  // data — a more literal, higher-confidence sibling of the instruction-phrase
-  // heuristic below. Essentially never legitimate in ordinary web copy
-  // (unlike bare "system:"/"assistant:", which do show up in transcripts and
-  // are handled as LOW-severity instruction phrases instead), so HIGH like
-  // the Tags block and bidi controls.
+  // Verbatim <|im_start|>, [INST], </system> — parsed as turn boundaries if a
+  // model ingests the page. HIGH (unlike bare "system:"/"assistant:" in prose).
   const CONTROL_TOKENS = [
     /<\|im_start\|>/i,
     /<\|im_end\|>/i,
@@ -558,16 +511,8 @@
   }
 
   // --- Normalization for the encoded/instruction re-scan pass ---------------
-  // Attackers can interrupt a base64 run or an instruction phrase with
-  // zero-width/invisible characters (or Tags-block chars) to dodge the regexes
-  // in scanEncoded/scanInstructions. This strips exactly the code points
-  // scanInvisible already flags (INVISIBLE keys + the Tags block) and returns
-  // an index map so findings discovered only in the stripped copy can still be
-  // pointed back at their real offset in the original text. Variation-selector
-  // code points are deliberately NOT stripped here — for those, the run of
-  // characters IS the hidden payload (see scanVariationSelectors above), not
-  // structural noise sitting around plain text, so stripping them would
-  // destroy the exact signal that detector needs.
+  // Strips INVISIBLE + Tags-block chars (same set scanInvisible flags).
+  // Variation-selector code points are NOT stripped — they ARE the payload.
   function stripInvisibleChars(text) {
     let out = "";
     const indexMap = []; // indexMap[i] = index in `text` of stripped `out[i]`
@@ -583,12 +528,10 @@
     return { text: out, indexMap };
   }
 
-  // De-dup key for content findings that can legitimately appear in both the
-  // raw and the normalized pass. `instruction-phrase` findings are keyed by
-  // which regex fired (stable identity even if the matched substring text
-  // differs due to stripped chars); encoded findings are keyed by their
-  // decoded payload (stable even though `sample`/`index` differ pre/post
-  // strip).
+  // De-dup key for findings that can surface in both the raw and normalized
+  // pass. Keyed on stable identity, not the matched text: instruction/control
+  // findings by which pattern fired, encoded findings by decoded payload — both
+  // survive the strip/normalize offset shift that changes `sample`/`index`.
   function contentFindingKey(f) {
     if (f.type === "instruction-phrase" || f.type === "control-token")
       return `${f.type}:${f.pattern}`;
@@ -596,9 +539,6 @@
   }
 
   // --- Unicode alphanumeric normalisation ("fancy text" → ASCII) ------------
-  // Maps common Mathematical Alphanumeric Symbol blocks and Fullwidth to plain
-  // ASCII A-Z/a-z so that instruction-phrase regexes catch obfuscated text like
-  // "𝗶𝗴𝗻𝗼𝗿𝗲" (math bold) or "ｉｇｎｏｒｅ" (fullwidth).
   function unicodeLetterToAscii(cp) {
     // Each range is a contiguous block of 26 code points mapping to A-Z or a-z.
     if (cp >= 0x1d400 && cp <= 0x1d419) return cp - 0x1d400 + 0x41; // Math Bold Caps
@@ -625,12 +565,8 @@
   }
 
   // --- Advanced deobfuscation: invisible-strip + leet + unicode-text + delimiter-strip ----
-  // Applies on top of stripInvisibleChars so patterns like "1gn0r3 |th3| s3cur1ty"
-  // get normalised to "ignore the security" before the instruction scan re-run.
-  // Also normalises Unicode fancy-text letters (math bold, fullwidth, etc.) to
-  // plain ASCII and compresses space-delimited single-letter runs.
-  // Only safe for instruction-scanning — DO NOT use for encoded/percent/hex scans,
-  // since leetspeak substitution would corrupt the encoding.
+  // ONLY safe for instruction-scanning — DO NOT use for encoded/percent/hex scans
+  // (leetspeak substitution corrupts the encoding).
   function normalizeDeobfuscated(text) {
     let out = "";
     const indexMap = []; // indexMap[i] = index in `text` of stripped `out[i]`

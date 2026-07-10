@@ -4,11 +4,6 @@
   const MARK_ATTR = "data-piscan-mark";
   const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE"]);
 
-  // Recursively collect every Document/ShadowRoot reachable from `root`:
-  // open shadow roots (element.shadowRoot) and same-origin iframe documents
-  // (iframe.contentDocument), nested arbitrarily deep. Closed shadow roots
-  // and cross-origin iframes are unreachable by design (spec / same-origin
-  // policy respectively) and are silently skipped rather than throwing.
   function collectRoots(root, acc) {
     acc = acc || [];
     acc.push(root);
@@ -29,11 +24,6 @@
     return acc;
   }
 
-  // Find the first element matching `selector` across `root` and every
-  // shadow root / same-origin iframe document reachable from it. Needed to
-  // re-locate an element by data-piscan-id from a later, separate
-  // executeScript call (popup.js's scrollTo), where a plain
-  // document.querySelector can't see past a shadow or frame boundary.
   function deepQuerySelector(root, selector) {
     for (const r of collectRoots(root)) {
       const found = r.querySelector(selector);
@@ -60,10 +50,6 @@
     root.querySelectorAll("." + OVERLAY_CLASS).forEach((n) => n.remove());
   }
 
-  // Like el.parentElement, but continues through a shadow-root boundary into
-  // the shadow host instead of stopping at null — needed so ancestor walks
-  // (resolveBackgroundColor) don't cut short for elements inside a shadow
-  // root and wrongly fall back to the top document's background.
   function parentOrHost(node) {
     if (node.parentElement) return node.parentElement;
     const root = node.getRootNode();
@@ -76,24 +62,9 @@
     return /^(?:rgba\(0,0,0,0(?:\.0+)?\)|rgba?\(000\/0(?:\.0+)?\)|transparent)$/.test(s);
   }
 
-  // Resolve the effective background color an element visually sits on top of:
-  // walk up the ancestor chain (through shadow-root boundaries) while the
-  // computed background is transparent, then fall back to <body>, then <html>.
-  // Returns null when nothing in that chain paints a real background — i.e.
-  // when the only thing behind the text is the browser's viewport canvas.
-  // We deliberately do NOT probe the system `Canvas` keyword here: it reflects
-  // the *browser* theme, not what the page actually paints, so an app that
-  // self-themes dark on a light-mode browser would report a
-  // white canvas behind its own white-on-dark text and trip a false
-  // "text color = background" match (see docs/plans, dark-page FP fix).
-  // Callers must treat null as "background unknown" rather than guessing.
-  //
-  // `ownBg` is passed in rather than recomputed here since callers already
-  // have a getComputedStyle(el) result for other properties, and this runs
-  // per-element across a full-page walk. Uses el.ownerDocument rather than the
-  // module-level `document`/`getComputedStyle` because `el` may belong to a
-  // same-origin iframe's document rather than the top one this script was
-  // injected into.
+  // Walk ancestor chain for a real background. Returns null when nothing paints
+  // (don't guess Canvas — see docs/plans). `ownBg` passed in since callers
+  // already have it; uses el.ownerDocument for iframe support.
   function resolveBackgroundColor(el, ownBg) {
     const ownerDoc = el.ownerDocument;
     const view = ownerDoc.defaultView;
@@ -116,12 +87,7 @@
     return isTransparentBg(bg) ? null : bg;
   }
 
-  // Common screen-reader-only class names across major frameworks (Bootstrap
-  // & Tailwind: sr-only, WordPress: screen-reader-text, various: visually-hidden,
-  // offscreen). Not exhaustive — CSS-module/hashed class names and other
-  // conventions won't match — this is a best-effort severity signal, not a
-  // detection boundary (unlike the original approach that fully suppressed
-  // these; see docs/plans/2026-07-07-false-positive-fatigue.md for why).
+  // Best-effort, not exhaustive — see docs/plans for why we don't fully suppress.
   const A11Y_HIDDEN_CLASSES = [
     "sr-only",
     "visually-hidden",
@@ -145,11 +111,6 @@
     if (cs.position === "absolute" && (left < -1000 || top < -1000))
       reasons.push("off-screen position");
     if (parseFloat(cs.textIndent) < -1000) reasons.push("negative text-indent");
-    // Only compare against a real, resolved background. resolveBackgroundColor
-    // returns null when nothing paints behind the text (only the browser
-    // canvas would) — we can't claim text ≈ background without knowing the
-    // background, and guessing the canvas color false-positives on
-    // self-themed dark pages viewed in a light-mode browser.
     const bg = resolveBackgroundColor(el, cs.backgroundColor);
     if (bg) {
       const tl = luminance(cs.color),
@@ -165,21 +126,14 @@
     return 0.299 * +m[0] + 0.587 * +m[1] + 0.114 * +m[2];
   }
 
-  // Record a finding on an element WITHOUT touching its rendered box: only the
-  // invisible MARK_ATTR is set (used by clearMarks and the Pass-2 severity
-  // check). The visible candle/badge/outline is drawn separately into an
-  // overlay layer by drawMarker, so marking never reflows or restyles the page.
   function highlightElement(el, severity) {
     el.setAttribute(MARK_ATTR, severity || "");
   }
 
   const OVERLAY_CLASS = "piscan-overlay";
 
-  // Get (or lazily create) the single absolutely-positioned overlay layer for
-  // `ownerDoc`. One per real Document (top document + each same-origin iframe);
-  // shadow-DOM elements share their host document's coordinate space, so they
-  // are covered by the host document's overlay. pointer-events:none lets clicks
-  // fall through to the page.
+  // One overlay per Document (top doc + each iframe). Shadow-DOM elements
+  // share their host's overlay. pointer-events:none so clicks pass through.
   function getOverlay(ownerDoc) {
     let overlay = ownerDoc.querySelector("." + OVERLAY_CLASS);
     if (!overlay) {
@@ -193,12 +147,6 @@
     return overlay;
   }
 
-  // Draw a non-invasive marker for one element: a severity-colored outline box
-  // sized to the element's rect, plus a corner chip holding the candle glyph
-  // and a numbered badge per finding on that element (`indices`). Positioned in
-  // document coordinates (rect + scroll) so it stays aligned as the page
-  // scrolls. `targetId` is stamped as data-piscan-for on the box, chip, and
-  // each badge so popup/tests can associate a marker with its element.
   function drawMarker(el, color, severity, indices, targetId) {
     const ownerDoc = el.ownerDocument;
     const view = ownerDoc.defaultView;

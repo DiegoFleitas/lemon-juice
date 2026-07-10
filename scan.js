@@ -1,11 +1,3 @@
-/**
- * scan.js — the DOM side. Injected AFTER detectors.js AND scan-helpers.js,
- * so both PIScanner and __PIScannerHelpers exist.
- *
- * Injection order matters: popup.js runs
- *   scripting.executeScript({ files: ["detectors.js", "scan-helpers.js", "scan.js"] })
- * then reads back window.__PIScanResult with a tiny follow-up call.
- */
 (function () {
   "use strict";
 
@@ -24,12 +16,7 @@
     drawMarker,
   } = globalThis.__PIScannerHelpers;
 
-  // Reveal genuinely-hidden text just enough to give it a real, on-screen box
-  // that the overlay marker can anchor to — restoring the original values is
-  // recorded in data-piscan-saved and undone by clearMarks. Deliberately does
-  // NOT touch text color: forcing a contrasting color mutated legitimately
-  // visible text on self-themed pages (dark-page false positive); the finding
-  // is surfaced by its marker and in the popup regardless.
+  // Record original values so clearMarks can restore them. Never changes text color.
   function makeHighlightVisible(el) {
     const savedOverrides = {};
     const cs = el.ownerDocument.defaultView.getComputedStyle(el);
@@ -60,10 +47,6 @@
   }
 
   function runScan() {
-    // Every Document/ShadowRoot reachable from the top document: itself,
-    // any open shadow roots (nested arbitrarily deep), and any same-origin
-    // iframe documents (ditto). Closed shadow roots and cross-origin
-    // iframes can't be reached and are silently skipped by collectRoots.
     const roots = collectRoots(document);
     roots.forEach((root) => clearMarks(root));
 
@@ -75,16 +58,10 @@
       const scope = root.nodeType === Node.DOCUMENT_NODE ? root.body : root;
       if (!scope) continue;
 
-      // Pass 1: invisible/encoded/instruction findings in text nodes.
+      // Pass 1 — also walks comments (SHOW_COMMENT): injected instructions in
+      // <!-- --> never render but an LLM sees them.
       // A ShadowRoot has no createTreeWalker of its own, so use its
-      // ownerDocument (a plain Document's ownerDocument is always null,
-      // hence the `|| root` fallback) — and root itself as the walker's
-      // root node, since `scope` for a ShadowRoot is the root itself.
-      // SHOW_COMMENT alongside SHOW_TEXT: an injected instruction hidden in
-      // an HTML comment (`<!-- ignore all previous instructions -->`) never
-      // renders, but an LLM ingesting the page's raw HTML/DOM still sees it —
-      // Comment nodes expose the same `.nodeValue`/`.parentElement` shape as
-      // Text nodes, so the rest of this loop handles both without change.
+      // ownerDocument; a plain Document's ownerDocument is null, hence `|| root`.
       const walker = (root.ownerDocument || root).createTreeWalker(
         scope,
         NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT,
@@ -150,23 +127,11 @@
       });
     }
 
-    // Dedup: findings with the same type + signal + surrounding text are the
-    // same content repeated across elements (e.g. a nav item in 5 <li>s) —
-    // collapse them in the list, but keep every occurrence highlighted on
-    // the page and record how many there were so a collapsed entry doesn't
-    // read as if it's the only occurrence.
-    //
-    // Also returns `group`: the same type+fingerprint identity but WITHOUT
-    // context, exposed on surviving items as `groupKey` purely for popup.js
-    // to fold large clusters of near-duplicates (e.g. the same invisible
-    // character scattered across many unrelated paragraphs) into one row at
-    // render time. This is deliberately NOT used for the dedup decision
-    // itself — dropping context from the actual dedup key was tried and
-    // reverted (see docs/plans/2026-07-07-false-positive-fatigue.md, Task 4
-    // background): it silently merged genuinely distinct findings that only
-    // shared a code point/pattern, breaking shadow-DOM/many-findings e2e
-    // coverage. `groupKey` lets popup.js apply that same collapsing idea as
-    // a presentation-only, volume-gated choice instead.
+    // full = dedup key (type+signal+context), group = fold key (type+signal only).
+    // Don't drop context from the dedup key: it was tried and reverted (silently
+    // merged genuinely distinct findings, broke shadow-DOM e2e; see
+    // docs/plans/2026-07-07-false-positive-fatigue.md, Task 4). groupKey is
+    // presentation-only — popup.js uses it to fold near-dup clusters at render.
     function findingIdentityKey(item) {
       const fingerprint =
         item.type === "instruction-phrase" || item.type === "control-token"
@@ -205,13 +170,6 @@
     const MAX_ITEMS = 200;
     const capped = items.slice(0, MAX_ITEMS);
 
-    // Draw overlay markers: ONE outline box per element (colored by the worst
-    // severity among its findings) carrying a numbered badge per finding.
-    // Group by element first — an element can hold several findings, and one
-    // finding can target several elements after dedup (targetIds, or targetId
-    // for items that predate that change). Runs after all reveals so revealed
-    // elements have settled, on-screen boxes to anchor to; nothing is injected
-    // into the page elements themselves.
     const markerByEl = new Map();
     for (const item of capped) {
       for (const id of item.targetIds && item.targetIds.length

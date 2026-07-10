@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.2.0 - 2026-07-10
+
+- chore: remove product name from comments (afaa2a7)
+- docs: mention SEO keyword stuffing as a known false-positive source (a634f4b)
+- fix(scan): non-invasive overlay markers + dark-page color=bg false positive (1f9f576)
+- docs: tighten README prose, fix em dashes, add severity mapping to What section (445fec6)
+- docs: reference source line numbers instead of replicating function lists (2280657)
+- docs: trim release section, add isTransparentBg/elementIsA11yHidden to helpers list (2993888)
+- test(scan): add dark-mode plaintext e2e fixture and test (b4fda01)
+- fix(scan): resolve system Canvas color instead of hardcoding white fallback (fd0a3bb)
+- test(scan): add isTransparentBg unit tests and plaintext-GPL e2e fixture (a8334e8)
+- fix(scan): normalize transparent background detection across string formats (4b4d4e3)
+
 ## v0.1.5 - 2026-07-07
 
 - docs(plans): add false-positive-fatigue mitigation plan (2cddc4c)

@@ -361,7 +361,7 @@
     return findings;
   }
 
-  const HTML_ENTITY_RUN = /(?:&#x?[0-9A-Fa-f]+;){6,}/g;
+  const HTML_ENTITY_RUN = /(?:&#[0-9]{2,7};|&#x[0-9A-Fa-f]{1,6};){6,}/g;
 
   function decodeHtmlEntities(s) {
     return s

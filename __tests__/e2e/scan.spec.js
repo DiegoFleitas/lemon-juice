@@ -30,6 +30,13 @@ test("baseline page has no findings", async ({ page }) => {
   expect(result.items).toEqual([]);
 });
 
+test("plaintext page produces no css-hidden false positives", async ({ page }) => {
+  const result = await injectAndScan(page, "plaintext-gpl.html");
+  expect(result.count).toBe(0);
+  expect(result.worst).toBeNull();
+  expect(result.items).toEqual([]);
+});
+
 test("detects invisible characters with correct severity", async ({ page }) => {
   const result = await injectAndScan(page, "invisible-chars.html");
   const invis = result.items.filter((i) => i.type === "invisible");

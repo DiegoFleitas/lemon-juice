@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { snippet, colorFor, luminance } = require("../scan-helpers.js");
+const { snippet, colorFor, luminance, isTransparentBg } = require("../scan-helpers.js");
 
 test("snippet: short text is returned as-is", () => {
   assert.equal(snippet("hello world"), "hello world");
@@ -51,4 +51,41 @@ test("luminance: near-white and white are within threshold", () => {
 
 test("luminance: black and white differ by more than threshold", () => {
   assert.ok(Math.abs(luminance("rgb(0,0,0)") - luminance("rgb(255,255,255)")) >= 30);
+});
+
+test("isTransparentBg: rgba(0,0,0,0) with spaces", () => {
+  assert.equal(isTransparentBg("rgba(0, 0, 0, 0)"), true);
+});
+
+test("isTransparentBg: rgba(0,0,0,0) without spaces", () => {
+  assert.equal(isTransparentBg("rgba(0,0,0,0)"), true);
+});
+
+test("isTransparentBg: 'transparent' keyword", () => {
+  assert.equal(isTransparentBg("transparent"), true);
+});
+
+test("isTransparentBg: CSS Color 4 modern rgb(0 0 0 / 0) syntax", () => {
+  assert.equal(isTransparentBg("rgb(0 0 0 / 0)"), true);
+  assert.equal(isTransparentBg("rgba(0 0 0 / 0)"), true);
+  assert.equal(isTransparentBg("rgb(0 0 0 / 0.0)"), true);
+});
+
+test("isTransparentBg: null/undefined/empty", () => {
+  assert.equal(isTransparentBg(null), true);
+  assert.equal(isTransparentBg(undefined), true);
+  assert.equal(isTransparentBg(""), true);
+});
+
+test("isTransparentBg: decimal alpha format rgba(0,0,0,0.0)", () => {
+  assert.equal(isTransparentBg("rgba(0, 0, 0, 0.0)"), true);
+  assert.equal(isTransparentBg("rgba(0,0,0,0.0)"), true);
+  assert.equal(isTransparentBg("rgba(0,0,0,0.00)"), true);
+});
+
+test("isTransparentBg: opaque colors return false", () => {
+  assert.equal(isTransparentBg("rgb(0, 0, 0)"), false);
+  assert.equal(isTransparentBg("rgb(255, 255, 255)"), false);
+  assert.equal(isTransparentBg("rgba(0, 0, 0, 0.5)"), false);
+  assert.equal(isTransparentBg("rgba(255, 0, 0, 0)"), false);
 });

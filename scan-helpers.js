@@ -69,36 +69,10 @@
     return root instanceof ShadowRoot ? root.host : null;
   }
 
-  // Check if a background-color string represents a fully transparent color.
-  // Handles the standard "rgba(0, 0, 0, 0)", spaces/no-spaces formats,
-  // "transparent" keyword, CSS Color 4 modern "rgb(0 0 0 / 0)" syntax,
-  // decimal alpha, and null/undefined/empty.
   function isTransparentBg(bg) {
     if (!bg) return true;
-    const s = bg.replace(/\s+/g, " ").toLowerCase().trim();
-    if (s === "transparent") return true;
-    const m = s.match(/^rgba?\(([^)]+)\)$/);
-    if (!m) return false;
-    const args = m[1].trim();
-    // Modern CSS Color 4 syntax: "r g b / a" or "r g b"
-    if (args.includes("/")) {
-      const sides = args.split("/").map((p) => p.trim());
-      const rgb = sides[0].split(/\s+/).map((n) => parseInt(n, 10));
-      if (rgb.length < 3) return false;
-      if (rgb[0] !== 0 || rgb[1] !== 0 || rgb[2] !== 0) return false;
-      return sides.length >= 2 && parseFloat(sides[1]) === 0;
-    }
-    // Legacy comma syntax: "r, g, b, a" or "r, g, b"
-    const legacy = args.split(",").map((p) => p.trim());
-    if (legacy.length < 3) return false;
-    if (
-      parseInt(legacy[0], 10) !== 0 ||
-      parseInt(legacy[1], 10) !== 0 ||
-      parseInt(legacy[2], 10) !== 0
-    )
-      return false;
-    if (legacy.length < 4) return false;
-    return parseFloat(legacy[3]) === 0;
+    const s = bg.replace(/\s+/g, "").toLowerCase();
+    return /^(?:rgba\(0,0,0,0(?:\.0+)?\)|rgba?\(000\/0(?:\.0+)?\)|transparent)$/.test(s);
   }
 
   // Resolve the effective background color of an element: walk up the

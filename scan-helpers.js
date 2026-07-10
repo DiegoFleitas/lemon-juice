@@ -127,13 +127,12 @@
     }
     const cp = cs.clipPath;
     if (cp && cp !== "none") {
-      if (
-        /^circle\(\s*0(px|%)?\s*(at|\))/i.test(cp) ||
-        /^inset\(\s*(50%|100%)/i.test(cp) ||
-        /^rect\(\s*0(px)?\s*,?\s*0(px)?\s*,?\s*0(px)?\s*,?\s*0(px)?\s*\)/i.test(cp)
-      )
+      if (/^circle\(\s*0(px|%)?\s*(at|\))/i.test(cp) || /^inset\(\s*(50%|100%)/i.test(cp))
         reasons.push("clip-path hides content");
     }
+    // Legacy `clip: rect(...)` — not a clip-path value, but still hides text.
+    if (cs.clip && cs.clip !== "auto" && /^rect\(\s*0(?:px)?\b/g.test(cs.clip))
+      reasons.push("clip hides content");
     const bg = resolveBackgroundColor(el, cs.backgroundColor);
     if (bg) {
       const tl = luminance(cs.color),

@@ -62,57 +62,39 @@ Five files, strict separation between pure logic and DOM:
 
 - **`detectors.js`** — Pure detection logic, deliberately free of any
   `document`/`window` access. Takes a string, returns findings. Exposes
-  `globalThis.PIScanner` (for content-script injection) _and_
-  `module.exports` (so it's Node-testable without a DOM harness). Contains
-  nine scan functions aggregated by `scanText()`: `scanInvisible`
-  (invisible/control code points + the Tags-block ASCII smuggling
-  reassembly), `scanEncoded` (base64 runs that decode to readable text),
-  `scanPercentEncoded` (`%XX` escape runs), `scanHexEscape` (`\xXX` escape
-  runs), `scanSpacedHex` (bare hex byte pairs separated by whitespace, no
-  `\x` prefix — same decode-then-verify-printability gate as the other
-  encoded-blob detectors), `scanControlTokens` (LLM chat-template turn
-  markers like `<|im_start|>`/`<|im_end|>`, `[INST]`/`[/INST]`, `</system>` —
-  HIGH severity, essentially never legitimate in web copy, unlike the LOW
-  informational `system:`/`assistant:` instruction phrases below),
-  `scanInstructions` (informational-only instruction-phrase matches
-  that never raise overall severity alone), `scanVariationSelectors`
-  (bytes hidden in a run of Unicode variation selectors after a base
-  character), and `scanSneakyBits` (bytes hidden as a run of invisible-times/
-  invisible-plus math operators), plus `worstSeverity()` for aggregating.
+  `globalThis.PIScanner` via `detectors.js:797`. Contains nine scan
+  functions aggregated by `scanText()` (see `detectors.js:677`): invisible
+  characters/control codes + Unicode-Tags ASCII smuggling reassembly,
+  base64 runs, percent-encoded runs, hex-escape runs, space-delimited hex
+  byte pairs, LLM control tokens (`<|im_start|>`, `[INST]`, `</system>` —
+  HIGH severity), instruction phrases (`system:`, `assistant:` — LOW
+  informational), variation-selector smuggling, and invisible-times/
+  invisible-plus math-operator smuggling, plus `worstSeverity()` for
+  aggregating (`detectors.js:770`).
 
-  A separate normalization layer feeds re-scans back into `scanInstructions`
-  (and, for `stripInvisibleChars`, the encoded-blob scans too) rather than
-  being its own top-level detector: `stripInvisibleChars` removes
-  invisible/tag characters and re-runs the encoded + instruction scans over
-  the stripped text; `normalizeDeobfuscated` runs a single per-character pass
-  converting fancy Unicode letters to ASCII (`unicodeLetterToAscii`), then
-  leetspeak (the `LEET` map), then stripping obfuscation delimiters
-  (`| _ \` ^ ~`), before re-running the instruction scan; and
-`SPACED_INSTRUCTION_PATTERNS` is a separate regex pass over the raw text
-for space-delimited letters (`i g n o r e ...`). If you're adding a new way
-to *disguise* letters or words (not a new hiding *mechanism*), it likely
-belongs in this normalization layer rather than as a new `scanX` function.
-  See "Adding a new detector" below.
+  A separate normalization layer at `detectors.js:571`/
+  `detectors.js:634`/`detectors.js:364` strips invisible tag characters
+  and normalizes obfuscated text (fancy Unicode → ASCII, leetspeak,
+  delimiter stripping, space-delimited-letter patterns) before
+  re-running the instruction and encoded-blob scans. If you're adding
+  a new way to _disguise_ letters or words (not a new hiding
+  _mechanism_), it likely belongs in this normalization layer rather
+  than as a new `scanX` function. See "Adding a new detector" below.
 
 - **`scan-helpers.js`** — Pure-ish DOM helper functions shared between the
   scanner and tests. Dual-export (global + CJS) matching the `detectors.js`
   pattern. Contains `elementHidesText`, `elementIsA11yHidden`,
-  `isTransparentBg`, `resolveBackgroundColor`, `luminance`, `colorFor`,
-  `snippet`, `directText`, `highlightElement`, `clearMarks`, and two
-  traversal helpers: `collectRoots(root)` recursively gathers every
-  `Document`/`ShadowRoot` reachable from `root` — open shadow roots
-  (`element.shadowRoot`) and same-origin iframe documents
-  (`iframe.contentDocument`), nested arbitrarily deep — and
-  `deepQuerySelector(root, selector)` (built on `collectRoots`) finds an
-  element by selector across all of them. `resolveBackgroundColor` walks
-  the ancestor chain (through shadow-host boundaries) for a non-transparent
-  background; if everything is transparent it probes the system `Canvas`
-  color via an off-screen element (respects OS dark mode). All style
-  resolution uses `el.ownerDocument.defaultView.getComputedStyle(el)` rather
-  than the module-level `document`, since `el` may belong to an iframe's
-  document. Closed shadow roots and cross-origin iframes are
-  unreachable by design (spec / same-origin policy respectively) —
-  `collectRoots` silently skips them rather than throwing.
+  `isTransparentBg`, `resolveBackgroundColor`, `luminance`,
+  `collectRoots`, `deepQuerySelector`, and others (see the full export list
+  at `scan-helpers.js:192`). `resolveBackgroundColor` walks the ancestor
+  chain (through shadow-host boundaries) for a non-transparent background;
+  if everything is transparent it probes the system `Canvas` color via an
+  off-screen element (respects OS dark mode). All style resolution uses
+  `el.ownerDocument.defaultView.getComputedStyle(el)` rather than the
+  module-level `document`, since `el` may belong to an iframe's document.
+  Closed shadow roots and cross-origin iframes are unreachable by design
+  (spec / same-origin policy respectively) — `collectRoots` silently skips
+  them rather than throwing.
 - **`scan.js`** — The DOM side. Calls `collectRoots(document)` once per scan
   and runs both passes over every collected root (top document, each open
   shadow root, each same-origin iframe document): Pass 1 walks text **and
@@ -165,10 +147,10 @@ That's the right shape for a new hiding _mechanism_ (a new kind of invisible
 character, encoding scheme, etc.). If instead you're adding a new way to
 _disguise_ letters or words in already-visible text, extend the
 normalization layer in the `detectors.js` bullet above (`unicodeLetterToAscii`'s
-range table, the `LEET` map, or the delimiter-strip charset in
-`normalizeDeobfuscated`) so it feeds the existing `scanInstructions` re-scan,
-rather than writing a parallel `scanX` function that reimplements its own
-normalization.
+range table at `detectors.js:386`, the `LEET` map at `detectors.js:48`, or the
+delimiter-strip regex at `detectors.js:661`) so it feeds the existing
+`scanInstructions` re-scan, rather than writing a parallel `scanX` function
+that reimplements its own normalization.
 
 Severity should reflect "how likely is this to be an attack vs. a legitimate
 page feature" (see the comments at the top of `detectors.js` for the

@@ -42,32 +42,34 @@ Click the toolbar icon and Lemon Juice surfaces invisible Unicode, ASCII smuggli
 
 Patterns essentially never legitimate in web copy, or well-filtered against common false positives.
 
-| Category | Examples | Severity |
-|---|---|---|
-| **ASCII smuggling** | Unicode Tags block (`U+E0000–E007F`) carrying a full hidden ASCII payload | High |
-| **Bidi controls** | RTL/LTR overrides & isolates that reorder or hide text ("Trojan Source") | High |
-| **Variation-selector smuggling** | Bytes hidden in a run of variation selectors after a base emoji | High |
-| **Sneaky Bits** | Invisible-times (U+2062) and invisible-plus (U+2064) encoding binary bits as a byte stream | High |
-| **LLM control tokens** | `<\|im_start\|>`, `[INST]`, `</system>`, `---END OF PROMPT---` and other chat-template turn markers | High |
-| **Visually hidden text** | 1px fonts, `opacity:0`, off-screen positioning, text-color-equals-background | Medium |
-| **Zero-width & invisible chars** | ZWSP, word joiner, BOM, soft hyphen, Arabic/Syriac/Mongolian format chars | Medium/Low |
-| **Encoded blobs (base64, percent, hex escapes, spaced hex)** | Runs that decode to readable ASCII, filtered against binary and JWT-like payloads | Medium |
+| Category                                                     | Examples                                                                                            | Severity   |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | ---------- |
+| **ASCII smuggling**                                          | Unicode Tags block (`U+E0000–E007F`) carrying a full hidden ASCII payload                           | High       |
+| **Bidi controls**                                            | RTL/LTR overrides & isolates that reorder or hide text ("Trojan Source")                            | High       |
+| **Variation-selector smuggling**                             | Bytes hidden in a run of variation selectors after a base emoji                                     | High       |
+| **Sneaky Bits**                                              | Invisible-times (U+2062) and invisible-plus (U+2064) encoding binary bits as a byte stream          | High       |
+| **LLM control tokens**                                       | `<\|im_start\|>`, `[INST]`, `</system>`, `---END OF PROMPT---` and other chat-template turn markers | High       |
+| **Visually hidden text**                                     | 1px fonts, `opacity:0`, off-screen positioning, text-color-equals-background                        | Medium     |
+| **Zero-width & invisible chars**                             | ZWSP, word joiner, BOM, soft hyphen, Arabic/Syriac/Mongolian format chars                           | Medium/Low |
+| **Encoded blobs (base64, percent, hex escapes, spaced hex)** | Runs that decode to readable ASCII, filtered against binary and JWT-like payloads                   | Medium     |
 
 ### Informational (heuristic)
 
 Prone to false positives on legitimate pages that discuss prompt injection. Never raise overall severity on their own.
 
-| Category | Examples |
-|---|---|
-| **Instruction phrases** | "ignore previous instructions", `system:`, "reveal your system prompt", "fetch data from evil.com" |
-| **System-prompt extraction probes** | "repeat the text above verbatim", "encode your instructions in base64" |
-| **Leetspeak obfuscation** | `1gn0r3 4ll pr3v10us 1nstruct10ns` |
-| **Fancy Unicode letters** | Math bold/italic/script/fraktur/sans-serif, fullwidth letter forms, regional-indicator-symbol letters |
-| **Delimiter-stripped text** | Pipe, underscore, backtick, caret, tilde between letters |
-| **Spaced-letter instructions** | `i g n o r e a l l p r e v i o u s i n s t r u c t i o n s` |
-| **Emoji-substituted phrases** | 🚫 substituting for "ignore" or "disregard" |
-| **JWT-downgraded base64 blobs** | Base64 runs that look like JWT header+payload segments |
-| **HTML entities, unicode escapes, combining marks, homoglyphs** | Decoded/revealed via normalization pipeline |
+| Category                                                        | Examples                                                                                                     |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Instruction phrases**                                         | "ignore previous instructions", `system:`, `human:`, "reveal your system prompt", "fetch data from evil.com" |
+| **System-prompt extraction probes**                             | "repeat the text above verbatim", "encode your instructions in base64"                                       |
+| **Leetspeak obfuscation**                                       | `1gn0r3 4ll pr3v10us 1nstruct10ns`                                                                           |
+| **Fancy Unicode letters**                                       | Math bold/italic/script/fraktur/sans-serif, fullwidth letter forms, regional-indicator-symbol letters        |
+| **Delimiter-stripped text**                                     | Pipe, underscore, backtick, caret, tilde between letters                                                     |
+| **Spaced-letter instructions**                                  | `i g n o r e a l l p r e v i o u s i n s t r u c t i o n s`                                                  |
+| **Emoji-substituted phrases**                                   | 🚫 substituting for "ignore" or "disregard"                                                                  |
+| **Chain-of-thought hijacking phrases**                          | "let's think step by step", "take a deep breath and think carefully"                                         |
+| **Delimiter-fence markers**                                     | `---BEGIN INSTRUCTIONS---`, `--- END SYSTEM ---` section fences                                              |
+| **JWT-downgraded base64 blobs**                                 | Base64 runs that look like JWT header+payload segments                                                       |
+| **HTML entities, unicode escapes, combining marks, homoglyphs** | Decoded/revealed via normalization pipeline                                                                  |
 
 Severity reflects _how likely a pattern is to be an attack vs. a legitimate feature_. Bidi overrides and the Tags block are essentially never innocent in web copy; zero-width joiners are legitimate in Arabic/Indic scripts and emoji, so they score low. The instruction-phrase detector and all deobfuscation passes are informational only: they false-positive on any page _about_ prompt injection (including the OWASP page and this README).
 
@@ -112,6 +114,7 @@ Buildless: plain ES modules, no bundler, no transpile step. Source files load di
 `detectors.js` and `scan-helpers.js` are deliberately free of `document`/`window` access, so detection logic tests in Node with no DOM harness. Add cases to `__tests__/detectors.test.js` for new detectors, `__tests__/scan-helpers.test.js` for helper changes, and `__tests__/e2e/` + `__tests__/fixtures/` when behavior needs a real page.
 
 For test pages that exercise detection:
+
 - [PayloadsAllTheThings — Prompt Injection](https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Prompt%20Injection#tools)
 - [Prompt-Injection-Everywhere](https://github.com/TakSec/Prompt-Injection-Everywhere)
 
@@ -120,13 +123,13 @@ For test pages that exercise detection:
 
 ## Architecture
 
-| File | Role |
-|---|---|
-| `detectors.js` | **Pure** detection logic. String in, findings out. No DOM. Exposed as `globalThis.PIScanner` (injection) and `module.exports` (tests). The testable core. |
-| `scan-helpers.js` | DOM helpers for scanning and overlay rendering. Dual-export pattern. `resolveBackgroundColor` returns `null` when nothing paints a real background (no guessing the system canvas color), preventing text-color false positives on self-themed dark pages. |
-| `scan.js` | DOM side: walks text and comment nodes across the top document, every open shadow root, and every same-origin iframe document. Runs detectors, applies CSS-hidden-text heuristics, draws hit markers into a non-invasive overlay. |
-| `popup.js` / `popup.html` | Injects the scripts into the active tab, reads back results, renders findings, sets the toolbar badge. |
-| `manifest.json` | MV3. `activeTab` + `scripting`, no host permissions needed. |
+| File                      | Role                                                                                                                                                                                                                                                       |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `detectors.js`            | **Pure** detection logic. String in, findings out. No DOM. Exposed as `globalThis.PIScanner` (injection) and `module.exports` (tests). The testable core.                                                                                                  |
+| `scan-helpers.js`         | DOM helpers for scanning and overlay rendering. Dual-export pattern. `resolveBackgroundColor` returns `null` when nothing paints a real background (no guessing the system canvas color), preventing text-color false positives on self-themed dark pages. |
+| `scan.js`                 | DOM side: walks text and comment nodes across the top document, every open shadow root, and every same-origin iframe document. Runs detectors, applies CSS-hidden-text heuristics, draws hit markers into a non-invasive overlay.                          |
+| `popup.js` / `popup.html` | Injects the scripts into the active tab, reads back results, renders findings, sets the toolbar badge.                                                                                                                                                     |
+| `manifest.json`           | MV3. `activeTab` + `scripting`, no host permissions needed.                                                                                                                                                                                                |
 
 > [!IMPORTANT]
 > Injection order matters: `detectors.js` > `scan-helpers.js` > `scan.js`. Each file reads `globalThis` at the top of its IIFE.
@@ -144,16 +147,26 @@ For test pages that exercise detection:
 
 ### Known misses
 
+These are detectable in principle, just not implemented (or only partially implemented) today:
+
 - **Payload splitting**: instructions across multiple DOM nodes (OWASP #6).
 - **Adversarial suffixes**: high-entropy gibberish triggers (OWASP #8).
-- **Multimodal / image-based payloads** (OWASP #7).
-- **Server-side, URL-fragment, and dynamically-fetched content** not in the rendered DOM at scan time.
 - **Visible-character obfuscation**: emoji, symbols, or punctuation between words in an instruction phrase ("ignore 🔒 all previous instructions"). Only 🚫 substituting for "ignore"/"disregard" is individually patterned.
 - **Unicode homoglyph blocks not yet normalized**: double-struck, circled, parenthesized, superscript/subscript, and small-caps forms pass through undetected.
 - **Emoji-only instructions**: pictograph sequences conveying a message visually.
 - **Compound obfuscation**: multiple obfuscation layers applied together.
-- **Closed shadow roots**: unreachable by design (the Shadow DOM spec). Open shadow roots and same-origin iframes _are_ scanned recursively.
 - **Cross-origin iframes**: blocked by same-origin policy. Reachable in principle via `scripting.executeScript({ allFrames: true })`, but per-frame result aggregation isn't implemented yet.
+
+### Out of scope by design
+
+These attack vectors are unreachable by a static DOM text scanner. They require runtime monitoring, image processing, or conversation state:
+
+- **Multimodal / image-based payloads** (OWASP #7): text-only scanner; images are never inspected.
+- **Server-side, URL-fragment, and dynamically-fetched content**: not in the rendered DOM at scan time.
+- **Closed shadow roots**: unreachable by spec. The Shadow DOM API deliberately hides them.
+- **Data exfiltration**: sending stolen content to a remote server. Requires network-level or output-level monitoring. This extension makes zero network calls and never reads model output.
+- **Multi-turn attacks**: building up malicious context across multiple user/assistant exchanges. Requires conversation state tracking across turns. This extension scans a single page snapshot on click.
+- **Few-shot poisoning structure**: inserting fake `user:`/`assistant:` example pairs to bias output. The role-prefix heuristic catches individual `human:`/`ai:` lines, but detecting the structure of an embedded conversation is beyond regex scope.
 
 ### Known false positives
 

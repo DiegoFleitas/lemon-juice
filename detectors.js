@@ -365,8 +365,20 @@
 
   function decodeHtmlEntities(s) {
     return s
-      .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n))
-      .replace(/&#x([0-9A-Fa-f]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)));
+      .replace(/&#(\d+);/g, (_, n) => {
+        try {
+          return String.fromCodePoint(+n);
+        } catch {
+          return "";
+        }
+      })
+      .replace(/&#x([0-9A-Fa-f]+);/g, (_, h) => {
+        try {
+          return String.fromCodePoint(parseInt(h, 16));
+        } catch {
+          return "";
+        }
+      });
   }
 
   function scanHtmlEntities(text) {

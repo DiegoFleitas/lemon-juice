@@ -49,6 +49,73 @@
     ["$", "s"],
   ]);
 
+  // Cross-alphabet homoglyphs — Cyrillic/Greek letters visually identical to Latin.
+  // Only high-confidence, genuinely identical-looking mappings. Output feeds only
+  // scanInstructions, so FP risk is bounded by the patterns' English-phrase specificity.
+  const HOMOGLYPH = new Map([
+    ["\u0430", "a"], // Cyrillic а
+    ["\u0435", "e"], // Cyrillic е
+    ["\u043e", "o"], // Cyrillic о
+    ["\u0440", "p"], // Cyrillic р
+    ["\u0441", "c"], // Cyrillic с
+    ["\u0443", "y"], // Cyrillic у
+    ["\u0445", "x"], // Cyrillic х
+    ["\u0456", "i"], // Cyrillic і
+    ["\u03bf", "o"], // Greek ο (omicron)
+    ["\u03b1", "a"], // Greek α (alpha)
+    ["\u03c1", "p"], // Greek ρ (rho)
+    ["\u03c7", "x"], // Greek χ (chi)
+    ["\u03ba", "k"], // Greek κ (kappa)
+  ]);
+
+  // Typoglycemia word list — instruction-related words that attackers scramble
+  // (same first/last letter, middle letters shuffled) to bypass word-boundary
+  // regexes while remaining readable by LLMs.
+  const TYPOGLYCEMIA_WORDS = [
+    "ignore",
+    "bypass",
+    "override",
+    "reveal",
+    "delete",
+    "system",
+    "previous",
+    "instructions",
+    "disable",
+    "remove",
+    "enable",
+    "activate",
+    "disregard",
+    "follow",
+    "obey",
+    "comply",
+    "pretend",
+    "assume",
+    "imagine",
+    "prompt",
+    "filter",
+    "safety",
+    "access",
+    "admin",
+    "developer",
+    "repeat",
+    "explain",
+    "forget",
+    "display",
+    "output",
+    "print",
+    "never",
+    "jailbreak",
+  ];
+
+  function isTypoglycemia(word, target) {
+    if (word.length !== target.length || word.length < 3) return false;
+    return (
+      word[0] === target[0] &&
+      word[word.length - 1] === target[word.length - 1] &&
+      [...word.slice(1, -1)].sort().join("") === [...target.slice(1, -1)].sort().join("")
+    );
+  }
+
   // Unicode Tags block: U+E0000–U+E007F. This is the "ASCII smuggling" vector —
   // a full invisible ASCII alphabet. Essentially never legitimate in web text,
   // so it's the single highest-value thing this whole extension detects.
@@ -259,6 +326,61 @@
           severity: SEVERITY.MEDIUM,
           index: m.index,
           sample: blob.slice(0, 32) + (blob.length > 32 ? "…" : ""),
+          decoded: decoded.slice(0, 120),
+        });
+      }
+    }
+    return findings;
+  }
+
+  // --- 2d. \uXXXX Unicode escape and HTML entity decoding --------------------
+  const UNICODE_ESCAPE_RUN = /(?:\\u[0-9A-Fa-f]{4}){6,}/g;
+
+  function decodeUnicodeEscapes(s) {
+    return s.replace(/\\u([0-9A-Fa-f]{4})/g, (_, h) =>
+      String.fromCharCode(parseInt(h, 16))
+    );
+  }
+
+  function scanUnicodeEscape(text) {
+    const findings = [];
+    let m;
+    while ((m = UNICODE_ESCAPE_RUN.exec(text)) !== null) {
+      const blob = m[0];
+      const decoded = decodeUnicodeEscapes(blob);
+      if (decoded && looksLikeText(decoded)) {
+        findings.push({
+          type: "encoded-unicode-escape",
+          severity: SEVERITY.LOW,
+          index: m.index,
+          sample: blob.slice(0, 32) + (blob.length > 32 ? "\u2026" : ""),
+          decoded: decoded.slice(0, 120),
+        });
+      }
+    }
+    return findings;
+  }
+
+  const HTML_ENTITY_RUN = /(?:&#x?[0-9A-Fa-f]+;){6,}/g;
+
+  function decodeHtmlEntities(s) {
+    return s
+      .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n))
+      .replace(/&#x([0-9A-Fa-f]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)));
+  }
+
+  function scanHtmlEntities(text) {
+    const findings = [];
+    let m;
+    while ((m = HTML_ENTITY_RUN.exec(text)) !== null) {
+      const blob = m[0];
+      const decoded = decodeHtmlEntities(blob);
+      if (decoded && looksLikeText(decoded)) {
+        findings.push({
+          type: "encoded-html-entity",
+          severity: SEVERITY.LOW,
+          index: m.index,
+          sample: blob.slice(0, 32) + (blob.length > 32 ? "\u2026" : ""),
           decoded: decoded.slice(0, 120),
         });
       }
@@ -481,7 +603,40 @@
     return findings;
   }
 
-  // --- 6. LLM chat-template control-token smuggling --------------------------
+  // --- 6. Combining diacritical marks (Zalgo) detection ----------------------
+  // 8+ combining marks (U+0300–U+036F) stacked on one base character is almost
+  // never legitimate and can obscure text or bypass word-boundary regexes.
+  function scanCombiningMarks(text) {
+    const findings = [];
+    let index = 0;
+    let stackCount = 0;
+    let stackStart = null;
+    const flush = () => {
+      if (stackCount >= 8)
+        findings.push({
+          type: "excessive-combining-marks",
+          severity: SEVERITY.LOW,
+          index: Math.max(0, stackStart - 1),
+          count: stackCount,
+        });
+      stackCount = 0;
+      stackStart = null;
+    };
+    for (const ch of text) {
+      const cp = ch.codePointAt(0);
+      if (cp >= 0x0300 && cp <= 0x036f) {
+        if (stackStart === null) stackStart = index;
+        stackCount++;
+      } else {
+        flush();
+      }
+      index += ch.length;
+    }
+    flush();
+    return findings;
+  }
+
+  // --- 7. LLM chat-template control-token smuggling --------------------------
   // Verbatim <|im_start|>, [INST], </system> — parsed as turn boundaries if a
   // model ingests the page. HIGH (unlike bare "system:"/"assistant:" in prose).
   const CONTROL_TOKENS = [
@@ -594,6 +749,14 @@
         rawIdx += ch.length;
         continue;
       }
+      // Homoglyph: Cyrillic/Greek → Latin (visually identical lookalikes)
+      const homo = HOMOGLYPH.get(ch);
+      if (homo) {
+        out += homo;
+        for (let k = 0; k < ch.length; k++) indexMap.push(rawIdx + k);
+        rawIdx += ch.length;
+        continue;
+      }
       // Strip delimiter chars used to bypass word-boundary regexes
       // (e.g. the pipe in I|g|n|o|r|e, or underscores in i_g_n_o_r_e).
       // Purposefully restrained — only strip chars that are (a) commonly used
@@ -606,6 +769,19 @@
       for (let k = 0; k < ch.length; k++) indexMap.push(rawIdx + k);
       rawIdx += ch.length;
     }
+    // Typoglycemia pass: correct first/last-letter scrambled instruction words.
+    // Same-length replacement — the indexMap built above stays valid.
+    out = out.replace(/\b[a-zA-Z]+\b/g, (match) => {
+      const lower = match.toLowerCase();
+      for (const w of TYPOGLYCEMIA_WORDS) {
+        if (lower !== w && isTypoglycemia(lower, w)) {
+          return match[0] === match[0].toUpperCase()
+            ? w[0].toUpperCase() + w.slice(1)
+            : w;
+        }
+      }
+      return match;
+    });
     return { text: out, indexMap };
   }
 
@@ -614,12 +790,15 @@
     const invisible = scanInvisible(text);
     const variationSelectors = scanVariationSelectors(text);
     const sneakyBits = scanSneakyBits(text);
+    const combiningMarks = scanCombiningMarks(text);
 
     const rawContent = [
       ...scanEncoded(text),
       ...scanPercentEncoded(text),
       ...scanHexEscape(text),
       ...scanSpacedHex(text),
+      ...scanUnicodeEscape(text),
+      ...scanHtmlEntities(text),
       ...scanControlTokens(text),
       ...scanInstructions(text),
     ];
@@ -633,6 +812,8 @@
         ...scanPercentEncoded(normalizedText),
         ...scanHexEscape(normalizedText),
         ...scanSpacedHex(normalizedText),
+        ...scanUnicodeEscape(normalizedText),
+        ...scanHtmlEntities(normalizedText),
         ...scanControlTokens(normalizedText),
         ...scanInstructions(normalizedText),
       ];
@@ -696,6 +877,7 @@
       ...invisible,
       ...variationSelectors,
       ...sneakyBits,
+      ...combiningMarks,
       ...rawContent,
       ...normalizedOnly,
       ...deobfuscatedOnly,
@@ -717,10 +899,13 @@
     scanPercentEncoded,
     scanHexEscape,
     scanSpacedHex,
+    scanUnicodeEscape,
+    scanHtmlEntities,
     scanControlTokens,
     scanInstructions,
     scanVariationSelectors,
     scanSneakyBits,
+    scanCombiningMarks,
     normalizeDeobfuscated,
     unicodeLetterToAscii,
     worstSeverity,

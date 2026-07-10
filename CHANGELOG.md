@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.3.1 - 2026-07-10
+
+- docs: document new instruction patterns and scope boundaries (2557d93)
+- feat(detectors): add cot, delimiter-fence, and human/ai role patterns (a19ade2)
+- docs: restore scope section and fix spaced-letter example (b7a8f10)
+- docs: rewrite README with cleaner structure and banner image (87d4434)
+
 ## v0.3.0 - 2026-07-10
 
 - fix(detectors): safe-guard decodeHtmlEntities against RangeError (f4160bc)

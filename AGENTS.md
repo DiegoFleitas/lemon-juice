@@ -96,18 +96,21 @@ belongs in this normalization layer rather than as a new `scanX` function.
 
 - **`scan-helpers.js`** — Pure-ish DOM helper functions shared between the
   scanner and tests. Dual-export (global + CJS) matching the `detectors.js`
-  pattern. Contains `elementHidesText`, `resolveBackgroundColor`, `luminance`,
-  `colorFor`, `snippet`, `directText`, `highlightElement`, `clearMarks`, and
-  two traversal helpers: `collectRoots(root)` recursively gathers every
+  pattern. Contains `elementHidesText`, `elementIsA11yHidden`,
+  `isTransparentBg`, `resolveBackgroundColor`, `luminance`, `colorFor`,
+  `snippet`, `directText`, `highlightElement`, `clearMarks`, and two
+  traversal helpers: `collectRoots(root)` recursively gathers every
   `Document`/`ShadowRoot` reachable from `root` — open shadow roots
   (`element.shadowRoot`) and same-origin iframe documents
   (`iframe.contentDocument`), nested arbitrarily deep — and
   `deepQuerySelector(root, selector)` (built on `collectRoots`) finds an
-  element by selector across all of them. `resolveBackgroundColor` and
-  `elementHidesText` resolve style via `el.ownerDocument.defaultView
-.getComputedStyle(el)` rather than the module-level `document`, since `el`
-  may belong to an iframe's document rather than the top one this script was
-  injected into. Closed shadow roots and cross-origin iframes are
+  element by selector across all of them. `resolveBackgroundColor` walks
+  the ancestor chain (through shadow-host boundaries) for a non-transparent
+  background; if everything is transparent it probes the system `Canvas`
+  color via an off-screen element (respects OS dark mode). All style
+  resolution uses `el.ownerDocument.defaultView.getComputedStyle(el)` rather
+  than the module-level `document`, since `el` may belong to an iframe's
+  document. Closed shadow roots and cross-origin iframes are
   unreachable by design (spec / same-origin policy respectively) —
   `collectRoots` silently skips them rather than throwing.
 - **`scan.js`** — The DOM side. Calls `collectRoots(document)` once per scan
@@ -177,19 +180,8 @@ topic.
 
 ## Before cutting a release
 
-v0.1.0 needed 5 follow-up commits (gitignore hiding the release automation,
-an invalid manifest key, two rounds of prettier formatting) because the
-release script and workflow were committed and tagged without ever being
-run end-to-end first. Before tagging the next version:
-
 - Run `pnpm lint && pnpm test && pnpm test:e2e` on a clean tree, then
-  `pnpm run package` and load the resulting zip as a temporary add-on — the
-  CI release workflow only runs lint + unit tests, not e2e, and never
-  substitutes for actually loading the packaged zip.
+  `pnpm run package` and load the resulting zip as a temporary add-on.
 - If you touched `scripts/release.js` or `.github/workflows/release.yml`,
-  dry-run them (or read the diff against a real `git status`-clean tree)
-  instead of trusting them on the first real tag push.
-- Before adding a new piece of automation (a bot, a workflow, a script),
-  check what's already configured — this repo briefly had a stray
-  `.gitignore` pattern hiding tracked files for the same reason: nobody
-  checked existing state before adding new state.
+  dry-run them instead of trusting them on the first real tag push.
+- Before adding a new piece of automation, check what's already configured.

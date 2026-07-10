@@ -69,6 +69,38 @@
     return root instanceof ShadowRoot ? root.host : null;
   }
 
+  // Check if a background-color string represents a fully transparent color.
+  // Handles the standard "rgba(0, 0, 0, 0)", spaces/no-spaces formats,
+  // "transparent" keyword, CSS Color 4 modern "rgb(0 0 0 / 0)" syntax,
+  // decimal alpha, and null/undefined/empty.
+  function isTransparentBg(bg) {
+    if (!bg) return true;
+    const s = bg.replace(/\s+/g, " ").toLowerCase().trim();
+    if (s === "transparent") return true;
+    const m = s.match(/^rgba?\(([^)]+)\)$/);
+    if (!m) return false;
+    const args = m[1].trim();
+    // Modern CSS Color 4 syntax: "r g b / a" or "r g b"
+    if (args.includes("/")) {
+      const sides = args.split("/").map((p) => p.trim());
+      const rgb = sides[0].split(/\s+/).map((n) => parseInt(n, 10));
+      if (rgb.length < 3) return false;
+      if (rgb[0] !== 0 || rgb[1] !== 0 || rgb[2] !== 0) return false;
+      return sides.length >= 2 && parseFloat(sides[1]) === 0;
+    }
+    // Legacy comma syntax: "r, g, b, a" or "r, g, b"
+    const legacy = args.split(",").map((p) => p.trim());
+    if (legacy.length < 3) return false;
+    if (
+      parseInt(legacy[0], 10) !== 0 ||
+      parseInt(legacy[1], 10) !== 0 ||
+      parseInt(legacy[2], 10) !== 0
+    )
+      return false;
+    if (legacy.length < 4) return false;
+    return parseFloat(legacy[3]) === 0;
+  }
+
   // Resolve the effective background color of an element: walk up the
   // ancestor chain (through shadow-root boundaries) while the computed
   // background is transparent, then fall back to <body>, then <html>, then
@@ -84,22 +116,22 @@
     const ownerDoc = el.ownerDocument;
     const view = ownerDoc.defaultView;
     let bg = ownBg;
-    if (!bg || bg === "rgba(0, 0, 0, 0)") {
+    if (isTransparentBg(bg)) {
       let p = parentOrHost(el);
       while (p && p !== ownerDoc.documentElement) {
         const pBg = p.ownerDocument.defaultView.getComputedStyle(p).backgroundColor;
-        if (pBg && pBg !== "rgba(0, 0, 0, 0)") {
+        if (!isTransparentBg(pBg)) {
           bg = pBg;
           break;
         }
         p = parentOrHost(p);
       }
     }
-    if ((!bg || bg === "rgba(0, 0, 0, 0)") && ownerDoc.body)
+    if (isTransparentBg(bg) && ownerDoc.body)
       bg = view.getComputedStyle(ownerDoc.body).backgroundColor;
-    if ((!bg || bg === "rgba(0, 0, 0, 0)") && ownerDoc.documentElement)
+    if (isTransparentBg(bg) && ownerDoc.documentElement)
       bg = view.getComputedStyle(ownerDoc.documentElement).backgroundColor;
-    if (!bg || bg === "rgba(0, 0, 0, 0)") bg = "rgb(255, 255, 255)";
+    if (isTransparentBg(bg)) bg = "rgb(255, 255, 255)";
     return bg;
   }
 
@@ -133,7 +165,7 @@
       reasons.push("off-screen position");
     if (parseFloat(cs.textIndent) < -1000) reasons.push("negative text-indent");
     const bg = resolveBackgroundColor(el, cs.backgroundColor);
-    if (bg && bg !== "rgba(0, 0, 0, 0)") {
+    if (!isTransparentBg(bg)) {
       const tl = luminance(cs.color),
         bl = luminance(bg);
       if (Math.abs(tl - bl) < 30) reasons.push("text color = background");
@@ -180,6 +212,7 @@
     clearMarks,
     elementHidesText,
     elementIsA11yHidden,
+    isTransparentBg,
     luminance,
     resolveBackgroundColor,
     highlightElement,

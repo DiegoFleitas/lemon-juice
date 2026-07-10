@@ -17,6 +17,7 @@
     clearMarks,
     elementHidesText,
     elementIsA11yHidden,
+    isTransparentBg,
     directText,
     snippet,
     colorFor,
@@ -55,7 +56,7 @@
       el.style.textIndent = "0";
     }
     const bg = resolveBackgroundColor(el, cs.backgroundColor);
-    if (bg && bg !== "rgba(0, 0, 0, 0)") {
+    if (!isTransparentBg(bg)) {
       const tl = luminance(cs.color),
         bl = luminance(bg);
       if (Math.abs(tl - bl) < 30) {

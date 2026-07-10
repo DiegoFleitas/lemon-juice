@@ -20,9 +20,8 @@ _The lemon is green while this is alpha. It ripens to yellow at 1.0._
 > — William of Baskerville, _The Name of the Rose_ (1986)
 
 A Firefox extension that holds a web page up to the flame. It reveals **SOME**
-hidden text and prompt-injection payloads: the writing an AI assistant would
-read but you can't see. That way you can decide before you hand the page to
-ChatGPT, Claude, Gemini, or a browser agent.
+hidden text and flags prompt-injection payloads so you can decide before you
+hand the page to ChatGPT, Claude, Gemini, or a browser agent.
 
 Click the toolbar icon and Lemon Juice surfaces invisible Unicode, ASCII
 smuggling, visually hidden text, encoded blobs, and instruction-like phrases.
@@ -38,34 +37,25 @@ Each hit is highlighted on the page and listed in the popup.
 
 ## Why this exists
 
-Indirect prompt injection (hiding instructions a human can't see so that an AI
-reading the page ingests and obeys them) is ranked **LLM01, the single highest
-risk** in the [OWASP Top 10 for LLM Applications](https://genai.owasp.org/llmrisk/llm01-prompt-injection/).
-It's now documented in the wild against real AI agents.
+Indirect prompt injection (hiding instructions so an AI reads and obeys them
+while a human sees nothing) is ranked **LLM01, the single highest risk** in the
+[OWASP Top 10 for LLM Applications](https://genai.owasp.org/llmrisk/llm01-prompt-injection/)
+and is now documented in the wild against real AI agents. The browser is where
+most of us meet this threat: we paste articles, summarize pages, point agents
+at sites we don't control. Yet on Firefox the only existing tooling was a single
+narrow zero-width-character add-on.
 
-The browser is where most of us actually meet this threat: we paste articles,
-summarize pages, and point agents at sites we don't control. Yet on Firefox the
-only existing tooling is a single narrow zero-width-character add-on. This project
-aims to be a well-scoped, **honestly-described** scanner for the whole
-hidden-text surface, not another "5 stars, 12 users, no idea if it works"
-listing.
-
-**Why Firefox first?** I use Firefox day to day and wanted this tool there.
-If you're pointing a browser agent or automation pipeline at untrusted pages,
-Chrome is worth a look too: automation-protocol tooling for it is far more
-mature, and most agent frameworks target it first. A Chrome port is on the
+**Why Firefox first?** I use it day to day. Chrome's automation-protocol tooling
+is more mature and most agent frameworks target it first, so a port is on the
 [roadmap](#roadmap).
 
 ## Why "Lemon Juice"?
 
-In _The Name of the Rose_, a monk hides a deadly secret by writing it on a
-parchment in lemon juice: invisible until someone holds the page over a flame
-and the heat brings the words out. Six centuries later, attackers hide
-instructions on web pages in invisible Unicode and zero-width characters: writing
-a human can't see, but that an AI reads and obeys. This extension is the candle.
-It doesn't act on the hidden text or "clean" it. It just makes it visible and
-leaves the judgment to you. William of Baskerville would approve: he trusted his
-own eyes over the Devil that everyone else was so sure they saw.
+In _The Name of the Rose_, a monk writes a deadly secret in lemon juice,
+invisible until held over a flame. Six centuries later, attackers hide
+instructions in invisible Unicode: writing a human can't see but an AI reads
+and obeys. This extension is the candle. It makes the hidden text visible and
+leaves the judgment to you.
 
 <p align="center">
   <img src="assets/screenshot-04.png" width="400" alt="Screenshot of hidden text detection">
@@ -123,37 +113,32 @@ this README).
 
 ## What this is and isn't
 
-OWASP's LLM01 prevention strategies are aimed almost entirely at the **LLM
-application developer**: constrain model behavior, validate output formats,
-enforce least privilege, keep a human in the loop. A browser extension on the page
-can't do any of those. What it _can_ do maps to one-and-a-half of them:
+OWASP's LLM01 prevention strategies target the **LLM application developer**:
+constrain model behavior, validate outputs, enforce least privilege, keep a
+human in the loop. A browser extension on the page can't do any of those.
+What it _can_ do maps to one-and-a-half of them:
 
-- **#6 Segregate and identify external content**: surface the untrusted/hidden
-  content so a human notices it before feeding the page to an assistant.
+- **#6 Segregate and identify external content**: surface hidden content so a
+  human notices it before feeding the page to an assistant.
 - A client-side sliver of **#3 Input filtering**: flag known obfuscation vectors.
 
 So the honest scope is: **reveal what an AI would ingest but you can't see.**
-Detection is not interception. This tool does not protect an autonomous agent that
-acts without you looking. For that, the defenses have to live inside the
-assistant/agent itself, which every major vendor concedes is not fully solvable.
+Detection is not interception. This tool only helps when a human is watching.
+It runs on click, so it never sits inside an agent's own browsing loop. What
+it flags spans both categories: HIGH-severity patterns (control tokens, bidi
+overrides, invisible chars) are jailbreak or smuggling artifacts; LOW-severity
+patterns (instruction phrases) signal an injection attempt on the page.
 
-This also means **Lemon Juice only helps when a human is watching**: it runs
-on click, so it never sits inside an agent's own browsing loop.
-
-For unattended agents, the defense has to live in the agent itself.
+For unattended agents, the defense has to live in the agent.
 [Claude for Chrome](https://www.anthropic.com/research/prompt-injection-defenses)
-is one example: it classifies prompt injection hidden in text, images, and
-deceptive UI, and Anthropic's own
-[guidance for using it](https://support.claude.com/en/articles/12902428-use-claude-in-chrome-safely)
-layers on permission prompts, human-in-the-loop review, minimal site access,
-and keeping agents out of banking/email sessions.
-
-None of it is bulletproof. ShadowPrompt, a browser-extension messaging bug,
-let attackers inject prompts directly and sidestep those defenses entirely
+classifies prompt injection across text and deceptive UI.
+[Guidance](https://support.claude.com/en/articles/12902428-use-claude-in-chrome-safely)
+layers permission prompts with minimal site access. None of it is bulletproof.
+ShadowPrompt sidestepped those defenses via a browser-extension messaging bug
 before Anthropic patched it. No vendor claims prompt injection is solved.
 
 **Treat Lemon Juice as a supplement for when you're reading, not a safety net
-for when you're not.**
+for when you're not reading.**
 
 ## Install
 
@@ -208,7 +193,7 @@ Both contain instruction-phrase matches and encoded obfuscation that Lemon Juice
 | File                      | Role                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `detectors.js`            | **Pure** detection logic. String in, findings out. No DOM. Exposed as `globalThis.PIScanner` (for injection) and `module.exports` (for tests). This is the testable core.                                                                                                                                                                                                                                               |
-| `scan-helpers.js`         | DOM helper functions shared between the scanner and tests: `elementHidesText`, `resolveBackgroundColor`, `luminance`, `colorFor`, `snippet`, `directText`, `highlightElement`, `clearMarks`, plus `collectRoots`/`deepQuerySelector` for recursing into open shadow roots and same-origin iframe documents. Same dual-export pattern as `detectors.js`.                                                                 |
+| `scan-helpers.js`         | DOM helper functions shared between the scanner and tests: `elementHidesText`, `elementIsA11yHidden`, `isTransparentBg`, `resolveBackgroundColor`, `luminance`, `colorFor`, `snippet`, `directText`, `highlightElement`, `clearMarks`, plus `collectRoots`/`deepQuerySelector` for recursing into open shadow roots and same-origin iframe documents. Same dual-export pattern as `detectors.js`.                       |
 | `scan.js`                 | The DOM side. Walks text **and comment** nodes (a `<!-- ... -->` never renders, but an LLM ingesting the page's raw HTML/DOM still sees it) across the top document, every open shadow root, and every same-origin iframe document (via `collectRoots`), runs the detectors, uses `elementHidesText` for the CSS-hidden-text heuristic, highlights hits, and stashes a serializable summary on `window.__PIScanResult`. |
 | `popup.js` / `popup.html` | Injects `detectors.js` then `scan-helpers.js` then `scan.js` into the active tab on open, reads the summary back, renders findings, sets the toolbar badge.                                                                                                                                                                                                                                                             |
 | `manifest.json`           | MV3. Uses `activeTab` + `scripting` (inject-on-click) so it needs **no host permissions**.                                                                                                                                                                                                                                                                                                                              |
@@ -253,11 +238,11 @@ Things the scanner will **miss**:
 - **Compound obfuscation**: multiple obfuscation layers applied together can
   push normalized text beyond what the deobfuscation pipeline reconstructs.
 - **Closed shadow roots**: content inside `element.attachShadow({mode: "closed"})`
-  is unreachable from outside by design of the Shadow DOM spec — no scanner
+  is unreachable from outside by design of the Shadow DOM spec; no scanner
   can see it. Open shadow roots and same-origin iframes _are_ scanned
   (recursively, arbitrarily nested).
-- **Cross-origin iframes**: blocked by the same-origin policy — `contentDocument`
-  access throws/returns `null` for a frame on a different origin. Reachable in
+- **Cross-origin iframes**: blocked by the same-origin policy. `contentDocument`
+  access throws or returns `null` for a frame on a different origin. Reachable in
   principle via `scripting.executeScript({ allFrames: true })`, but that needs
   per-frame result aggregation (severity counts, click-to-scroll targeting the
   right frame) in `popup.js` that doesn't exist yet.

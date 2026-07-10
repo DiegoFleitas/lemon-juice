@@ -57,5 +57,9 @@ test("highlights the element containing a comment-hidden finding", async ({ page
   await injectAndScan(page, "html-comments.html");
   const nearCommentDiv = page.locator("#near-comment");
   await expect(nearCommentDiv).toHaveAttribute("data-piscan-mark");
-  await expect(nearCommentDiv.locator(".piscan-candle")).toBeAttached();
+  // The marker is drawn into the overlay layer, keyed by data-piscan-for.
+  const id = await nearCommentDiv.getAttribute("data-piscan-id");
+  await expect(
+    page.locator(`.piscan-overlay .piscan-candle[data-piscan-for="${id}"]`)
+  ).toBeAttached();
 });

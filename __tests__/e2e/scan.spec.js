@@ -23,6 +23,15 @@ async function injectAndScan(page, fixtureName) {
   return page.evaluate(() => window.__PIScanResult);
 }
 
+// Markers are drawn into a single .piscan-overlay layer, not injected into
+// page elements. Each marker (outline box + candle/badge chip) carries
+// data-piscan-for="<the element's data-piscan-id>", so this resolves the
+// overlay candle chip belonging to a given page element.
+async function candleFor(page, elementLocator) {
+  const id = await elementLocator.getAttribute("data-piscan-id");
+  return page.locator(`.piscan-overlay .piscan-candle[data-piscan-for="${id}"]`);
+}
+
 test("baseline page has no findings", async ({ page }) => {
   const result = await injectAndScan(page, "baseline.html");
   expect(result.count).toBe(0);
@@ -56,6 +65,35 @@ test("dark mode plaintext page does not flip text color", async ({ page }) => {
     const saved = JSON.parse(preColor.saved);
     expect(saved.color).toBeUndefined();
   }
+});
+
+test("app-themed dark page on a light browser: no color=background false positive", async ({
+  page,
+}) => {
+  // Default (light) color scheme — deliberately NOT emulating dark, so the
+  // browser canvas is white while the page paints itself dark. This is the
+  // exact real-world case that mangled 18 legitimately-visible elements.
+  const result = await injectAndScan(page, "app-dark-light-browser.html");
+  const cssHidden = result.items.filter((i) => i.type === "css-hidden");
+
+  // The white-on-transparent paragraph must NOT be flagged as css-hidden and
+  // must NOT have its color/anything overridden.
+  const appText = page.locator('[data-testid="app-dark-text"]');
+  // No reveal or override was recorded, and the page's own inline color is
+  // untouched (still the fixture's #e8e8e8, not flipped to a contrasting one).
+  expect(await appText.getAttribute("data-piscan-saved")).toBeNull();
+  expect(await appText.evaluate((el) => el.style.color)).toBe("rgb(232, 232, 232)");
+  expect(cssHidden.some((i) => i.context.includes("summarize this listing"))).toBe(false);
+
+  // The Pass-1 instruction phrase in that same paragraph is still found.
+  expect(result.items.some((i) => i.type === "instruction-phrase")).toBe(true);
+
+  // True positive preserved: light text on a REAL dark background is flagged.
+  const realHidden = cssHidden.filter((i) =>
+    i.reasons.includes("text color = background")
+  );
+  expect(realHidden.length).toBe(1);
+  expect(realHidden[0].context).toContain("real dark background");
 });
 
 test("detects invisible characters with correct severity", async ({ page }) => {
@@ -168,12 +206,15 @@ test("reveals content split by a zero-width space via the normalized re-scan pas
 test("detects CSS-hidden text and skips display:none", async ({ page }) => {
   const result = await injectAndScan(page, "css-hidden.html");
   const hidden = result.items.filter((i) => i.type === "css-hidden");
-  expect(hidden.length).toBe(7);
-  const flaggedNone = hidden.some((h) => h.context.includes("Should NOT"));
-  expect(flaggedNone).toBe(false);
+  // 6 findings: tiny-font, opacity:0, off-screen, negative text-indent,
+  // white-on-white (real bg), and white-on-near-white (real ancestor bg).
+  // white-on-default-bg is NOT flagged: its only "background" is the browser
+  // canvas, which we no longer guess (that's the dark-page false-positive gate).
+  expect(hidden.length).toBe(6);
+  expect(hidden.some((h) => h.context.includes("Should NOT"))).toBe(false);
+  expect(hidden.some((h) => h.context.includes("White on default page bg"))).toBe(false);
 
-  // Verify candle icons exist and CSS overrides make them visible
-  await expect(page.locator(".piscan-candle")).toHaveCount(7);
+  // Reveals still make genuinely-hidden text visible (color is NOT touched).
   await expect(page.locator("[data-testid=font-size-hidden]")).toHaveCSS(
     "font-size",
     "16px"
@@ -187,18 +228,12 @@ test("detects CSS-hidden text and skips display:none", async ({ page }) => {
     "text-indent",
     "0px"
   );
-  await expect(page.locator("[data-testid=white-on-default-bg]")).toHaveCSS(
-    "color",
-    "rgb(0, 0, 0)"
-  );
-  await expect(page.locator("[data-testid=wix-nested]")).toHaveCSS(
-    "color",
-    "rgb(0, 0, 0)"
-  );
 
-  // Verify numbered badges exist
-  const badges = page.locator(".piscan-badge");
-  await expect(badges).toHaveCount(7);
+  // Markers live in the overlay layer — one candle + one badge per finding —
+  // and nothing is injected into the page elements themselves.
+  await expect(page.locator(".piscan-overlay .piscan-candle")).toHaveCount(6);
+  const badges = page.locator(".piscan-overlay .piscan-badge");
+  await expect(badges).toHaveCount(6);
   const firstBadge = await badges.first().textContent();
   expect(parseInt(firstBadge)).toBeGreaterThan(0);
 });
@@ -207,13 +242,14 @@ test("only direct text-holding parent gets highlighted", async ({ page }) => {
   await injectAndScan(page, "nested-highlight.html");
   const inner = page.locator("#inner");
   await expect(inner).toHaveAttribute("data-piscan-mark");
-  await expect(inner.locator(".piscan-candle")).toBeAttached();
+  await expect(await candleFor(page, inner)).toBeAttached();
   const outer = page.locator("#outer");
   await expect(outer).not.toHaveAttribute("data-piscan-mark");
-  await expect(outer.locator("> .piscan-candle")).not.toBeAttached();
   const middle = page.locator("#middle");
   await expect(middle).not.toHaveAttribute("data-piscan-mark");
-  await expect(middle.locator("> .piscan-candle")).not.toBeAttached();
+  // Only the innermost text-holder is marked, so the overlay has exactly one
+  // marker for the whole nested structure.
+  await expect(page.locator(".piscan-overlay .piscan-candle")).toHaveCount(1);
 });
 
 test("CSS-hidden does not downgrade high-severity candle icon color", async ({
@@ -223,9 +259,9 @@ test("CSS-hidden does not downgrade high-severity candle icon color", async ({
   expect(result.worst).toBe("high");
   const el = page.locator("#overlap");
   await expect(el).toHaveAttribute("data-piscan-mark", "high");
-  const icon = el.locator(".piscan-candle");
+  const icon = await candleFor(page, el);
   await expect(icon).toBeAttached();
-  const iconColor = await icon.evaluate((el) => getComputedStyle(el).color);
+  const iconColor = await icon.evaluate((n) => getComputedStyle(n).color);
   expect(iconColor).toBe("rgb(229, 72, 77)");
 });
 
@@ -243,13 +279,15 @@ test("downgrades a11y-marked CSS-hidden elements to LOW severity", async ({ page
   expect(ordinary.length).toBe(1);
   expect(ordinary[0].severity).toBe("medium");
   expect(ordinary[0].likelyA11y).toBeUndefined();
-  // All 3 elements still have candle icons
+  // All 3 elements still get an overlay marker.
   await expect(
-    page.locator('[data-testid="a11y-offscreen"] .piscan-candle')
+    await candleFor(page, page.locator('[data-testid="a11y-offscreen"]'))
   ).toBeAttached();
-  await expect(page.locator('[data-testid="a11y-sronly"] .piscan-candle')).toBeAttached();
   await expect(
-    page.locator('[data-testid="ordinary-css-hidden"] .piscan-candle')
+    await candleFor(page, page.locator('[data-testid="a11y-sronly"]'))
+  ).toBeAttached();
+  await expect(
+    await candleFor(page, page.locator('[data-testid="ordinary-css-hidden"]'))
   ).toBeAttached();
 });
 
@@ -290,16 +328,20 @@ test("css-hidden re-scan preserves finding count", async ({ page }) => {
 test("re-scanning preserves marks on same page", async ({ page }) => {
   await injectAndScan(page, "invisible-chars.html");
   const marked1 = await page.locator("[data-piscan-mark]").count();
-  const candles1 = await page.locator(".piscan-candle").count();
+  const candles1 = await page.locator(".piscan-overlay .piscan-candle").count();
   expect(marked1).toBeGreaterThan(0);
-  expect(candles1).toBe(marked1);
+  expect(candles1).toBeGreaterThan(0);
   await injectAndScan(page, "invisible-chars.html");
   const marked2 = await page.locator("[data-piscan-mark]").count();
-  const candles2 = await page.locator(".piscan-candle").count();
+  const candles2 = await page.locator(".piscan-overlay .piscan-candle").count();
+  // Re-scan clears the old overlay + marks first, so counts stay stable
+  // (no accumulation of duplicate markers).
   expect(marked2).toBe(marked1);
-  expect(candles2).toBe(marked2);
-  const badges2 = await page.locator(".piscan-badge").count();
-  expect(badges2).toBe(marked2);
+  expect(candles2).toBe(candles1);
+  // One candle (box) per element, one badge per finding — so at least as many
+  // badges as candles.
+  const badges2 = await page.locator(".piscan-overlay .piscan-badge").count();
+  expect(badges2).toBeGreaterThanOrEqual(candles2);
 });
 
 test("dedup collapses identical findings across repeated elements", async ({ page }) => {
@@ -323,42 +365,49 @@ test("dedup collapses identical findings across repeated elements", async ({ pag
   );
   expect(distinct).toBeTruthy();
   expect(distinct.context).toMatch(/you are now a duck/);
-  // All 3 repeated elements still have candle icons and marks
-  await expect(page.locator('[data-testid="repeated-1"] .piscan-candle')).toBeAttached();
-  await expect(page.locator('[data-testid="repeated-2"] .piscan-candle')).toBeAttached();
-  await expect(page.locator('[data-testid="repeated-3"] .piscan-candle')).toBeAttached();
-  // Each element may have multiple badges (one per finding type) but they
-  // must be the same badges across all 3 repeated elements
-  const badges1 = await page
-    .locator('[data-testid="repeated-1"] .piscan-badge')
-    .allTextContents();
-  const badges2 = await page
-    .locator('[data-testid="repeated-2"] .piscan-badge')
-    .allTextContents();
-  const badges3 = await page
-    .locator('[data-testid="repeated-3"] .piscan-badge')
-    .allTextContents();
+  // All 3 repeated elements still get overlay markers and marks. Because the
+  // findings are deduped, each repeated element is a separate targetId of the
+  // SAME items, so each carries the same set of badge numbers.
+  const rep1 = page.locator('[data-testid="repeated-1"]');
+  const rep2 = page.locator('[data-testid="repeated-2"]');
+  const rep3 = page.locator('[data-testid="repeated-3"]');
+  await expect(await candleFor(page, rep1)).toBeAttached();
+  await expect(await candleFor(page, rep2)).toBeAttached();
+  await expect(await candleFor(page, rep3)).toBeAttached();
+  const badgesForEl = async (elLocator) => {
+    const id = await elLocator.getAttribute("data-piscan-id");
+    return page
+      .locator(`.piscan-overlay .piscan-badge[data-piscan-for="${id}"]`)
+      .allTextContents();
+  };
+  const badges1 = await badgesForEl(rep1);
+  const badges2 = await badgesForEl(rep2);
+  const badges3 = await badgesForEl(rep3);
   expect(badges1.length).toBeGreaterThanOrEqual(1);
   expect(badges1).toEqual(badges2);
   expect(badges2).toEqual(badges3);
 });
 
-test("never marks its own decoration nodes (no mark nested inside a mark)", async ({
+test("never scans its own overlay markers, and re-scanning stays stable", async ({
   page,
 }) => {
-  const result = await injectAndScan(page, "decoration-rescan.html");
-  // The instruction phrase is the only real finding; the injected candle must
-  // not be re-flagged as a css-hidden finding despite its blue color matching
-  // the gray background luminance.
-  const cssHidden = result.items.filter((i) => i.type === "css-hidden");
-  expect(cssHidden.length).toBe(0);
-  // The target keeps exactly one candle, and that candle holds no nested
-  // mark/candle/badge — decoration nodes are excluded from both scan passes.
-  await expect(page.locator("#target > .piscan-candle")).toHaveCount(1);
-  await expect(page.locator(".piscan-candle [data-piscan-mark]")).toHaveCount(0);
-  await expect(page.locator(".piscan-candle[data-piscan-mark]")).toHaveCount(0);
-  await expect(page.locator(".piscan-candle .piscan-candle")).toHaveCount(0);
-  await expect(page.locator(".piscan-badge[data-piscan-mark]")).toHaveCount(0);
+  // The overlay's candle/badge glyphs would themselves look like findings on a
+  // mid-gray page, but markers live in the .piscan-overlay layer which is torn
+  // down at the start of every scan (clearMarks) and only rebuilt at the end —
+  // so a re-scan never ingests them.
+  const r1 = await injectAndScan(page, "decoration-rescan.html");
+  const css1 = r1.items.filter((i) => i.type === "css-hidden");
+  expect(css1.length).toBe(0);
+  expect(r1.items.some((i) => i.type === "instruction-phrase")).toBe(true);
+
+  const r2 = await injectAndScan(page, "decoration-rescan.html");
+  expect(r2.count).toBe(r1.count);
+  expect(r2.items.filter((i) => i.type === "css-hidden").length).toBe(0);
+
+  // No overlay node was ever marked (no mark nested inside a marker), and the
+  // target keeps exactly one marker after two scans.
+  await expect(page.locator(".piscan-overlay [data-piscan-mark]")).toHaveCount(0);
+  await expect(await candleFor(page, page.locator("#target"))).toHaveCount(1);
 });
 
 test("clearMarks removes marks and candles when switching to clean page", async ({
@@ -369,6 +418,7 @@ test("clearMarks removes marks and candles when switching to clean page", async 
   expect(await page.locator(".piscan-candle").count()).toBeGreaterThan(0);
   await injectAndScan(page, "baseline.html");
   expect(await page.locator("[data-piscan-mark]").count()).toBe(0);
+  expect(await page.locator(".piscan-overlay").count()).toBe(0);
   expect(await page.locator(".piscan-candle").count()).toBe(0);
   expect(await page.locator(".piscan-badge").count()).toBe(0);
 });

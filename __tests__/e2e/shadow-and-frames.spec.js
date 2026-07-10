@@ -41,16 +41,18 @@ test("detects a finding inside an open shadow root, highlighted and badged", asy
       !!host.shadowRoot.getElementById("open-zws").getAttribute("data-piscan-mark")
   );
   expect(markedInOpenShadow).toBe(true);
-  const candleInOpenShadow = await openHost.evaluate(
-    (host) =>
-      host.shadowRoot.getElementById("open-zws").querySelector(".piscan-candle") !== null
+  // A shadow-DOM element's ownerDocument is the top document, so its marker is
+  // drawn into the top document's overlay (keyed by data-piscan-for), not
+  // inside the shadow root.
+  const openZwsId = await openHost.evaluate(
+    (host) => host.shadowRoot.getElementById("open-zws").dataset.piscanId
   );
-  expect(candleInOpenShadow).toBe(true);
-  const badgeInOpenShadow = await openHost.evaluate(
-    (host) =>
-      host.shadowRoot.getElementById("open-zws").querySelector(".piscan-badge") !== null
-  );
-  expect(badgeInOpenShadow).toBe(true);
+  await expect(
+    page.locator(`.piscan-overlay .piscan-candle[data-piscan-for="${openZwsId}"]`)
+  ).toBeAttached();
+  await expect(
+    page.locator(`.piscan-overlay .piscan-badge[data-piscan-for="${openZwsId}"]`)
+  ).toBeAttached();
 });
 
 test("detects a CSS-hidden finding inside an open shadow root", async ({ page }) => {
@@ -122,16 +124,18 @@ test("clearMarks removes marks/candles/badges from a shadow root and an iframe o
     (host) => host.shadowRoot.querySelectorAll("[data-piscan-mark]").length
   );
   expect(markedBefore).toBeGreaterThan(0);
+  // Shadow-DOM markers land in the top document's overlay.
+  const candlesBefore = await page.locator(".piscan-overlay .piscan-candle").count();
+  expect(candlesBefore).toBeGreaterThan(0);
 
   await injectAndScan(page, "shadow-dom.html");
   const markedAfter = await openHost.evaluate(
     (host) => host.shadowRoot.querySelectorAll("[data-piscan-mark]").length
   );
   expect(markedAfter).toBe(markedBefore);
-  const candlesAfter = await openHost.evaluate(
-    (host) => host.shadowRoot.querySelectorAll(".piscan-candle").length
-  );
-  expect(candlesAfter).toBe(markedAfter);
+  // Re-scan tears the overlay down first, so markers don't accumulate.
+  const candlesAfter = await page.locator(".piscan-overlay .piscan-candle").count();
+  expect(candlesAfter).toBe(candlesBefore);
 });
 
 test("deepQuerySelector finds an element by data-piscan-id inside a shadow root and an iframe", async ({

@@ -87,9 +87,16 @@ Five files, strict separation between pure logic and DOM:
   `isTransparentBg`, `resolveBackgroundColor`, `luminance`,
   `collectRoots`, `deepQuerySelector`, and others (see the full export list
   at `scan-helpers.js:192`). `resolveBackgroundColor` walks the ancestor
-  chain (through shadow-host boundaries) for a non-transparent background;
-  if everything is transparent it probes the system `Canvas` color via an
-  off-screen element (respects OS dark mode). All style resolution uses
+  chain (through shadow-host boundaries) for a non-transparent background,
+  falling back to `<body>`/`<html>`, and returns `null` when nothing paints a
+  real background. It deliberately does **not** guess the system `Canvas`
+  color in that case: `Canvas` reflects the _browser_ theme, not what the page
+  actually paints, so a page that self-themes dark (Notion, etc.) viewed in a
+  light-mode browser would report a white canvas behind its own white text and
+  trip a false `"text color = background"` match. `elementHidesText` therefore
+  runs the color-equality reason **only against a real resolved background**
+  (`null` ⇒ skip it); the other reasons (tiny font, `opacity:0`, off-screen,
+  negative text-indent) are unaffected. All style resolution uses
   `el.ownerDocument.defaultView.getComputedStyle(el)` rather than the
   module-level `document`, since `el` may belong to an iframe's document.
   Closed shadow roots and cross-origin iframes are unreachable by design
@@ -106,12 +113,29 @@ Five files, strict separation between pure logic and DOM:
   `PIScanner.scanText` on each; Pass 2 uses
   `elementHidesText` (from helpers) for CSS-hidden-text detection (tiny font
   size, `opacity:0`, off-screen absolute positioning, negative text-indent,
-  text color equal to background — _not_ plain `display:none`, which is too
-  common to be signal). Highlights hits with an outline + `data-piscan-mark`
-  attribute, and stashes a serializable summary on `window.__PIScanResult`.
-  `data-piscan-id` values are unique across the whole page (one counter
-  shared across all roots), which lets `popup.js`'s `scrollTo` re-locate an
-  element by id later via `deepQuerySelector`.
+  text color equal to a **real** background — _not_ plain `display:none`, which
+  is too common to be signal). Markers are **non-invasive**: nothing is
+  injected into page elements and no page style is overwritten. Each finding
+  element only gets invisible `data-piscan-mark`/`data-piscan-id` attributes;
+  the visible candle glyph + numbered badges + a severity-colored outline box
+  are drawn into a single per-Document overlay layer (`.piscan-overlay`,
+  `position:absolute`, `pointer-events:none`), positioned over the element via
+  `getBoundingClientRect()` + scroll offset (`scan-helpers.js` `drawMarker`).
+  One box per element, one badge per finding, colored by the element's worst
+  severity. Shadow-DOM elements share their host document's coordinate space,
+  so their markers live in the host document's overlay; same-origin iframe
+  elements get an overlay inside the iframe document. `clearMarks` tears the
+  overlay(s) down (and restores any reveal overrides) at the start of every
+  scan, so markers never accumulate and the overlay is never itself re-scanned.
+  `makeHighlightVisible` still reveals genuinely-hidden text (bumping tiny
+  fonts, `opacity:0→0.5`, off-screen→static, resetting text-indent — recorded
+  in `data-piscan-saved`, undone by `clearMarks`) so the marker has a visible
+  box to anchor to, but it **never** rewrites text color. A serializable
+  summary is stashed on `window.__PIScanResult`. `data-piscan-id` values are
+  unique across the whole page (one counter shared across all roots), which
+  lets `popup.js`'s `scrollTo` re-locate an element by id later via
+  `deepQuerySelector`, and links each overlay marker to its element via
+  `data-piscan-for`.
 - **`popup.js` / `popup.html`** — On popup open, injects `detectors.js` then
   `scan-helpers.js` then `scan.js` into the active tab via
   `browser.scripting.executeScript`, reads back `window.__PIScanResult` with

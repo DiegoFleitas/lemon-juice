@@ -17,19 +17,19 @@
     clearMarks,
     elementHidesText,
     elementIsA11yHidden,
-    isTransparentBg,
     directText,
     snippet,
     colorFor,
     highlightElement,
-    luminance,
-    resolveBackgroundColor,
+    drawMarker,
   } = globalThis.__PIScannerHelpers;
 
-  function contrastingColor(bg) {
-    return luminance(bg) > 128 ? "#000000" : "#ffffff";
-  }
-
+  // Reveal genuinely-hidden text just enough to give it a real, on-screen box
+  // that the overlay marker can anchor to — restoring the original values is
+  // recorded in data-piscan-saved and undone by clearMarks. Deliberately does
+  // NOT touch text color: forcing a contrasting color mutated legitimately
+  // visible text on self-themed pages (dark-page false positive); the finding
+  // is surfaced by its marker and in the popup regardless.
   function makeHighlightVisible(el) {
     const savedOverrides = {};
     const cs = el.ownerDocument.defaultView.getComputedStyle(el);
@@ -54,15 +54,6 @@
     if (parseFloat(cs.textIndent) < -1000) {
       savedOverrides.textIndent = el.style.textIndent || "";
       el.style.textIndent = "0";
-    }
-    const bg = resolveBackgroundColor(el, cs.backgroundColor);
-    if (!isTransparentBg(bg)) {
-      const tl = luminance(cs.color),
-        bl = luminance(bg);
-      if (Math.abs(tl - bl) < 30) {
-        savedOverrides.color = el.style.color || "";
-        el.style.color = contrastingColor(bg);
-      }
     }
     if (Object.keys(savedOverrides).length)
       el.dataset.piscanSaved = JSON.stringify(savedOverrides);
@@ -116,7 +107,7 @@
           const el = node.parentElement;
           if (!el.dataset.piscanId) el.dataset.piscanId = `pi-${nextElementId++}`;
           elementById.set(el.dataset.piscanId, el);
-          highlightElement(el, colorFor(worst), worst);
+          highlightElement(el, worst);
           makeHighlightVisible(el);
         }
         const inComment = node.nodeType === Node.COMMENT_NODE;
@@ -132,15 +123,6 @@
       // Pass 2: elements whose text is visually hidden by CSS.
       scope.querySelectorAll("*").forEach((el) => {
         if (SKIP_TAGS.has(el.tagName)) return;
-        // Skip our own decoration nodes: Pass 1 injects .piscan-candle spans
-        // before this querySelectorAll runs, and their glyph counts as
-        // directText, so without this guard Pass 2 re-flags them (candle color
-        // ≈ background), nesting a mark inside a mark.
-        if (
-          el.classList.contains("piscan-candle") ||
-          el.classList.contains("piscan-badge")
-        )
-          return;
         const ownText = directText(el);
         if (!ownText) return;
         const reasons = elementHidesText(el);
@@ -154,7 +136,7 @@
             : baseSev;
           if (!el.dataset.piscanId) el.dataset.piscanId = `pi-${nextElementId++}`;
           elementById.set(el.dataset.piscanId, el);
-          highlightElement(el, colorFor(sev), sev);
+          highlightElement(el, sev);
           makeHighlightVisible(el);
           items.push({
             type: "css-hidden",
@@ -223,24 +205,34 @@
     const MAX_ITEMS = 200;
     const capped = items.slice(0, MAX_ITEMS);
 
-    // Add numbered badges on elements — supports multiple elements per
-    // item after dedup (targetIds from the dedup loop, or targetId fallback
-    // for items that predate the dedup change).
-    for (let i = capped.length - 1; i >= 0; i--) {
-      const item = capped[i];
+    // Draw overlay markers: ONE outline box per element (colored by the worst
+    // severity among its findings) carrying a numbered badge per finding.
+    // Group by element first — an element can hold several findings, and one
+    // finding can target several elements after dedup (targetIds, or targetId
+    // for items that predate that change). Runs after all reveals so revealed
+    // elements have settled, on-screen boxes to anchor to; nothing is injected
+    // into the page elements themselves.
+    const markerByEl = new Map();
+    for (const item of capped) {
       for (const id of item.targetIds && item.targetIds.length
         ? item.targetIds
         : [item.targetId]) {
-        if (!id) continue;
-        const el = elementById.get(id);
-        if (!el) continue;
-        const badge = el.ownerDocument.createElement("sup");
-        badge.className = "piscan-badge";
-        badge.textContent = item.index;
-        badge.style.cssText = "color:#000;font-size:10px;margin:0 1px;";
-        el.insertBefore(badge, el.firstChild);
+        if (!id || !elementById.has(id)) continue;
+        const m = markerByEl.get(id);
+        if (m) {
+          m.severity = S.worstSeverity([{ severity: m.severity }, item]);
+          m.indices.push(item.index);
+        } else {
+          markerByEl.set(id, {
+            el: elementById.get(id),
+            severity: item.severity,
+            indices: [item.index],
+          });
+        }
       }
     }
+    for (const [id, m] of markerByEl)
+      drawMarker(m.el, colorFor(m.severity), m.severity, m.indices, id);
 
     const summary = {
       url: location.href,

@@ -55,8 +55,9 @@
       el.removeAttribute("data-piscan-id");
       el.removeAttribute(MARK_ATTR);
     });
-    root.querySelectorAll(".piscan-candle").forEach((n) => n.remove());
-    root.querySelectorAll(".piscan-badge").forEach((n) => n.remove());
+    // Markers live in a single overlay layer, not inline in page elements —
+    // removing the overlay tears down every candle/badge/box at once.
+    root.querySelectorAll("." + OVERLAY_CLASS).forEach((n) => n.remove());
   }
 
   // Like el.parentElement, but continues through a shadow-root boundary into
@@ -75,17 +76,24 @@
     return /^(?:rgba\(0,0,0,0(?:\.0+)?\)|rgba?\(000\/0(?:\.0+)?\)|transparent)$/.test(s);
   }
 
-  // Resolve the effective background color of an element: walk up the
-  // ancestor chain (through shadow-root boundaries) while the computed
-  // background is transparent, then fall back to <body>, then <html>, then
-  // the system Canvas color. Shared between elementHidesText (below) and scan.js's
-  // makeHighlightVisible, which both need to know what an element visually
-  // sits on top of. `ownBg` is passed in rather than recomputed here since
-  // callers already have a getComputedStyle(el) result for other
-  // properties, and this runs per-element across a full-page walk. Uses
-  // el.ownerDocument rather than the module-level `document`/
-  // `getComputedStyle` because `el` may belong to a same-origin iframe's
-  // document rather than the top one this script was injected into.
+  // Resolve the effective background color an element visually sits on top of:
+  // walk up the ancestor chain (through shadow-root boundaries) while the
+  // computed background is transparent, then fall back to <body>, then <html>.
+  // Returns null when nothing in that chain paints a real background — i.e.
+  // when the only thing behind the text is the browser's viewport canvas.
+  // We deliberately do NOT probe the system `Canvas` keyword here: it reflects
+  // the *browser* theme, not what the page actually paints, so an app that
+  // self-themes dark on a light-mode browser (Notion, etc.) would report a
+  // white canvas behind its own white-on-dark text and trip a false
+  // "text color = background" match (see docs/plans, dark-page FP fix).
+  // Callers must treat null as "background unknown" rather than guessing.
+  //
+  // `ownBg` is passed in rather than recomputed here since callers already
+  // have a getComputedStyle(el) result for other properties, and this runs
+  // per-element across a full-page walk. Uses el.ownerDocument rather than the
+  // module-level `document`/`getComputedStyle` because `el` may belong to a
+  // same-origin iframe's document rather than the top one this script was
+  // injected into.
   function resolveBackgroundColor(el, ownBg) {
     const ownerDoc = el.ownerDocument;
     const view = ownerDoc.defaultView;
@@ -105,19 +113,7 @@
       bg = view.getComputedStyle(ownerDoc.body).backgroundColor;
     if (isTransparentBg(bg) && ownerDoc.documentElement)
       bg = view.getComputedStyle(ownerDoc.documentElement).backgroundColor;
-    if (isTransparentBg(bg)) {
-      // Neither element, body, nor html has an explicit background —
-      // the viewport canvas color (white in light mode, dark in dark mode)
-      // is painted by the browser engine, not by CSS. Probe a tiny
-      // off-screen element with the system Canvas keyword to get the
-      // actual color the user sees behind the page.
-      const p = ownerDoc.createElement("div");
-      p.style.cssText = "position:fixed;left:-9999px;top:-9999px;background:Canvas;";
-      ownerDoc.body.appendChild(p);
-      bg = view.getComputedStyle(p).backgroundColor;
-      ownerDoc.body.removeChild(p);
-    }
-    return bg;
+    return isTransparentBg(bg) ? null : bg;
   }
 
   // Common screen-reader-only class names across major frameworks (Bootstrap
@@ -149,8 +145,13 @@
     if (cs.position === "absolute" && (left < -1000 || top < -1000))
       reasons.push("off-screen position");
     if (parseFloat(cs.textIndent) < -1000) reasons.push("negative text-indent");
+    // Only compare against a real, resolved background. resolveBackgroundColor
+    // returns null when nothing paints behind the text (only the browser
+    // canvas would) — we can't claim text ≈ background without knowing the
+    // background, and guessing the canvas color false-positives on
+    // self-themed dark pages viewed in a light-mode browser.
     const bg = resolveBackgroundColor(el, cs.backgroundColor);
-    if (!isTransparentBg(bg)) {
+    if (bg) {
       const tl = luminance(cs.color),
         bl = luminance(bg);
       if (Math.abs(tl - bl) < 30) reasons.push("text color = background");
@@ -164,14 +165,81 @@
     return 0.299 * +m[0] + 0.587 * +m[1] + 0.114 * +m[2];
   }
 
-  function highlightElement(el, color, severity) {
+  // Record a finding on an element WITHOUT touching its rendered box: only the
+  // invisible MARK_ATTR is set (used by clearMarks and the Pass-2 severity
+  // check). The visible candle/badge/outline is drawn separately into an
+  // overlay layer by drawMarker, so marking never reflows or restyles the page.
+  function highlightElement(el, severity) {
     el.setAttribute(MARK_ATTR, severity || "");
-    const icon = el.ownerDocument.createElement("span");
-    icon.className = "piscan-candle";
-    icon.textContent = "\ud83d\udd6f";
-    icon.style.cssText = `color:${color};font-size:16px;margin:0 2px 0 0;cursor:help;vertical-align:middle;`;
-    icon.title = (severity || "") + " severity finding";
-    el.insertBefore(icon, el.firstChild);
+  }
+
+  const OVERLAY_CLASS = "piscan-overlay";
+
+  // Get (or lazily create) the single absolutely-positioned overlay layer for
+  // `ownerDoc`. One per real Document (top document + each same-origin iframe);
+  // shadow-DOM elements share their host document's coordinate space, so they
+  // are covered by the host document's overlay. pointer-events:none lets clicks
+  // fall through to the page.
+  function getOverlay(ownerDoc) {
+    let overlay = ownerDoc.querySelector("." + OVERLAY_CLASS);
+    if (!overlay) {
+      overlay = ownerDoc.createElement("div");
+      overlay.className = OVERLAY_CLASS;
+      overlay.style.cssText =
+        "position:absolute;left:0;top:0;width:0;height:0;margin:0;padding:0;" +
+        "border:0;pointer-events:none;z-index:2147483647;";
+      ownerDoc.body.appendChild(overlay);
+    }
+    return overlay;
+  }
+
+  // Draw a non-invasive marker for one element: a severity-colored outline box
+  // sized to the element's rect, plus a corner chip holding the candle glyph
+  // and a numbered badge per finding on that element (`indices`). Positioned in
+  // document coordinates (rect + scroll) so it stays aligned as the page
+  // scrolls. `targetId` is stamped as data-piscan-for on the box, chip, and
+  // each badge so popup/tests can associate a marker with its element.
+  function drawMarker(el, color, severity, indices, targetId) {
+    const ownerDoc = el.ownerDocument;
+    const view = ownerDoc.defaultView;
+    const rect = el.getBoundingClientRect();
+    const left = rect.left + view.scrollX;
+    const top = rect.top + view.scrollY;
+    const overlay = getOverlay(ownerDoc);
+
+    const box = ownerDoc.createElement("div");
+    box.className = "piscan-mark-box";
+    if (targetId) box.setAttribute("data-piscan-for", targetId);
+    box.style.cssText =
+      `position:absolute;left:${left}px;top:${top}px;` +
+      `width:${Math.max(rect.width, 8)}px;height:${Math.max(rect.height, 8)}px;` +
+      `box-sizing:border-box;outline:2px solid ${color};pointer-events:none;`;
+
+    const chip = ownerDoc.createElement("span");
+    chip.className = "piscan-candle";
+    if (targetId) chip.setAttribute("data-piscan-for", targetId);
+    chip.title = (severity || "") + " severity finding";
+    chip.style.cssText =
+      `position:absolute;left:0;top:0;transform:translateY(-100%);` +
+      `display:inline-flex;align-items:center;gap:2px;color:${color};` +
+      `font:600 11px/1.2 system-ui,sans-serif;background:rgba(0,0,0,.6);` +
+      `padding:0 3px;border-radius:2px;white-space:nowrap;`;
+
+    const glyph = ownerDoc.createElement("span");
+    glyph.textContent = "\ud83d\udd6f";
+    glyph.style.cssText = "font-size:12px;";
+    chip.appendChild(glyph);
+
+    for (const index of indices) {
+      const badge = ownerDoc.createElement("span");
+      badge.className = "piscan-badge";
+      if (targetId) badge.setAttribute("data-piscan-for", targetId);
+      badge.textContent = index;
+      chip.appendChild(badge);
+    }
+
+    box.appendChild(chip);
+    overlay.appendChild(box);
   }
 
   function directText(el) {
@@ -201,6 +269,7 @@
     luminance,
     resolveBackgroundColor,
     highlightElement,
+    drawMarker,
     directText,
     snippet,
     colorFor,

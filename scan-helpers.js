@@ -111,6 +111,29 @@
     if (cs.position === "absolute" && (left < -1000 || top < -1000))
       reasons.push("off-screen position");
     if (parseFloat(cs.textIndent) < -1000) reasons.push("negative text-indent");
+    const t = cs.transform;
+    if (t && t !== "none") {
+      const m = t.match(/matrix(3d)?\(([^)]+)\)/);
+      if (m) {
+        const is3d = !!m[1];
+        const nums = m[2].split(",").map(Number);
+        const tx = is3d ? nums[12] : nums[4];
+        const ty = is3d ? nums[13] : nums[5];
+        const sx = nums[0];
+        const sy = is3d ? nums[5] : nums[3];
+        if (tx < -9000 || ty < -9000) reasons.push("transform off-screen");
+        if (sx === 0 || sy === 0) reasons.push("transform scale(0)");
+      }
+    }
+    const cp = cs.clipPath;
+    if (cp && cp !== "none") {
+      if (
+        /^circle\(\s*0(px|%)?\s*(at|\))/i.test(cp) ||
+        /^inset\(\s*(50%|100%)/i.test(cp) ||
+        /^rect\(\s*0(px)?\s*,?\s*0(px)?\s*,?\s*0(px)?\s*,?\s*0(px)?\s*\)/i.test(cp)
+      )
+        reasons.push("clip-path hides content");
+    }
     const bg = resolveBackgroundColor(el, cs.backgroundColor);
     if (bg) {
       const tl = luminance(cs.color),

@@ -78,7 +78,7 @@
   // Resolve the effective background color of an element: walk up the
   // ancestor chain (through shadow-root boundaries) while the computed
   // background is transparent, then fall back to <body>, then <html>, then
-  // white. Shared between elementHidesText (below) and scan.js's
+  // the system Canvas color. Shared between elementHidesText (below) and scan.js's
   // makeHighlightVisible, which both need to know what an element visually
   // sits on top of. `ownBg` is passed in rather than recomputed here since
   // callers already have a getComputedStyle(el) result for other
@@ -105,7 +105,18 @@
       bg = view.getComputedStyle(ownerDoc.body).backgroundColor;
     if (isTransparentBg(bg) && ownerDoc.documentElement)
       bg = view.getComputedStyle(ownerDoc.documentElement).backgroundColor;
-    if (isTransparentBg(bg)) bg = "rgb(255, 255, 255)";
+    if (isTransparentBg(bg)) {
+      // Neither element, body, nor html has an explicit background —
+      // the viewport canvas color (white in light mode, dark in dark mode)
+      // is painted by the browser engine, not by CSS. Probe a tiny
+      // off-screen element with the system Canvas keyword to get the
+      // actual color the user sees behind the page.
+      const p = ownerDoc.createElement("div");
+      p.style.cssText = "position:fixed;left:-9999px;top:-9999px;background:Canvas;";
+      ownerDoc.body.appendChild(p);
+      bg = view.getComputedStyle(p).backgroundColor;
+      ownerDoc.body.removeChild(p);
+    }
     return bg;
   }
 

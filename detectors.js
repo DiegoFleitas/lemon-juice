@@ -404,12 +404,18 @@
   // Deliberately INFORMATIONAL only (never bumps overall severity to HIGH on
   // its own) because it false-positives on any page discussing prompt
   // injection — including the OWASP page and this very extension's README.
+
+  // Bare role labels. Shared with scanContextSwitch(), which must EXCLUDE this
+  // pattern from its corroboration check — otherwise any transcript corroborates
+  // itself.
+  const ROLE_LABEL_PATTERN = /^\s*(system|assistant|user|human|ai)\s*:/im;
+
   const INSTRUCTION_PATTERNS = [
     /\bignore\s+(all\s+)?(previous|prior|above)\s+(instructions|prompts?)\b/i,
     /\bdisregard\s+(the\s+)?(previous|above|system)\b/i,
     /\byou\s+are\s+now\b/i,
     /\bnew\s+instructions?\s*:/i,
-    /^\s*(system|assistant|user|human|ai)\s*:/im,
+    ROLE_LABEL_PATTERN,
     /\bdo\s+not\s+(tell|inform|mention\s+to)\s+the\s+user\b/i,
     // --- expanded corpus (jailbreak/override phrasing) ---
     /\bforget\s+(all\s+)?(previous|prior|earlier)\s+(instructions|context|prompts?)\b/i,
@@ -479,6 +485,16 @@
     // No leading \b — fence markers can appear at line start after whitespace.
     /---\s*(?:BEGIN|START)\s+(?:INSTRUCTIONS?|PROMPT|OVERRIDE|RULES|SYSTEM)\s*---/i,
     /---\s*(?:END|STOP)\s+(?:INSTRUCTIONS?|PROMPT|OVERRIDE|RULES|SYSTEM)\s*---/i,
+
+    // --- Compound / continuation-of-system-prompt instructions (OWASP scenario #1) ---
+    // Text posing as an amendment to the assistant's own instructions. Bare
+    // "updated policy:" and "the following supersedes" false-positive hard on ToS
+    // pages, changelogs and contract boilerplate — require "you"/"your".
+    /\bas\s+part\s+of\s+your\s+(?:updated|new|revised|current)\s+(?:guidelines|instructions?|policy|rules)\b/i,
+    /\bnew\s+instructions?\s+effective\s+immediately\b/i,
+    /\bper\s+your\s+(?:revised|updated|new)\s+instructions?\b/i,
+    /\bupdated\s+policy\s*:\s*(?:you|your|the\s+assistant|assistant)\b/i,
+    /\bthe\s+following\s+supersedes\s+(?:all\s+)?(?:your\s+|any\s+)?(?:previous|prior|earlier)\s+(?:instructions?|guidelines|rules|prompts?)\b/i,
   ];
 
   // Spaced-letter patterns (e.g. "i g n o r e") run as a separate pass in
@@ -506,6 +522,54 @@
         });
       }
     }
+    return findings;
+  }
+
+  // --- 3b. Context-switch / fake-conversation heuristic (OWASP scenario #1) --
+  // Injected content fabricates a multi-turn dialogue so the assistant reads a
+  // compliance it never gave. FALSE-POSITIVE RISK IS REAL: legitimate support
+  // transcripts, chat-log docs and LLM tutorials all contain "User:"/"AI:"
+  // turns. Structure alone is therefore NOT enough — a finding needs two role
+  // lines PLUS corroboration: a refusal→acceptance flip, or an instruction
+  // phrase other than the bare role label itself (ROLE_LABEL_PATTERN, which
+  // every transcript trips). The weaker instruction-phrase path additionally
+  // requires two DISTINCT roles, so a FAQ repeating one label doesn't convict
+  // on a stray phrase. The flip path deliberately does not: a fabricated
+  // refusal-then-compliance is inherently same-role (the attacker writes the
+  // assistant refusing, then complying), and the refusal + acceptance
+  // co-occurrence is specific enough to carry it alone.
+  // Severity stays LOW for the same reason scanInstructions is LOW: it
+  // corroborates, it never convicts. It also inherits scanInstructions' FP
+  // profile — a tutorial that both shows role labels and quotes "ignore all
+  // previous instructions" will fire. That is the accepted cost of LOW.
+  // LIMITATION: scan.js scans one DOM text node at a time, so this only sees
+  // dialogues that live in a single node (<pre>, comment, textarea, attribute).
+  const ROLE_TURN_RE =
+    /^[ \t>*-]*(?:\*\*)?(user|human|assistant|ai|system|chatbot|bot)(?:\*\*)?\s*:/gim;
+  const REFUSAL_RE =
+    /\b(?:i\s+(?:can't|cannot|can\s+not|won't|will\s+not|am\s+unable\s+to)|i'm\s+(?:sorry|not\s+able))\b/i;
+  const COMPLIANCE_FLIP_RE =
+    /\b(?:sure|certainly|of\s+course|understood|absolutely)\b[,.!]?\s*(?:here(?:'s|\s+is|\s+are)|i(?:'ll|\s+will|\s+can)\b)/i;
+
+  function scanContextSwitch(text) {
+    const findings = [];
+    const turns = [...text.matchAll(ROLE_TURN_RE)];
+    if (turns.length < 2) return findings;
+    const labels = new Set(turns.map((t) => t[1].toLowerCase()));
+    const flip = REFUSAL_RE.test(text) && COMPLIANCE_FLIP_RE.test(text);
+    const instr =
+      labels.size >= 2 &&
+      scanInstructions(text).some((f) => f.pattern !== ROLE_LABEL_PATTERN.source);
+    if (!flip && !instr) return findings;
+    const match = text.slice(turns[0].index, turns[0].index + 80).split("\n")[0];
+    findings.push({
+      type: "context-switch",
+      severity: SEVERITY.LOW,
+      index: turns[0].index,
+      roles: [...labels],
+      reason: flip ? "compliance-flip" : "instruction-phrase",
+      match,
+    });
     return findings;
   }
 
@@ -830,6 +894,7 @@
       ...scanHtmlEntities(text),
       ...scanControlTokens(text),
       ...scanInstructions(text),
+      ...scanContextSwitch(text),
     ];
 
     let normalizedOnly = [];
@@ -932,6 +997,7 @@
     scanHtmlEntities,
     scanControlTokens,
     scanInstructions,
+    scanContextSwitch,
     scanVariationSelectors,
     scanSneakyBits,
     scanCombiningMarks,

@@ -69,6 +69,8 @@ Prone to false positives on legitimate pages that discuss prompt injection. Neve
 | **Chain-of-thought hijacking phrases**                          | "let's think step by step", "take a deep breath and think carefully"                                         |
 | **Delimiter-fence markers**                                     | `---BEGIN INSTRUCTIONS---`, `--- END SYSTEM ---` section fences                                              |
 | **JWT-downgraded base64 blobs**                                 | Base64 runs that look like JWT header+payload segments                                                       |
+| **Fabricated conversation turns**                               | `User:`/`Assistant:` dialogue carrying an instruction or refusal flip (single text node only)                |
+| **Compound / continuation-of-system-prompt instructions**       | "As part of your updated guidelines", "Per your revised instructions"                                        |
 | **HTML entities, unicode escapes, combining marks, homoglyphs** | Decoded/revealed via normalization pipeline                                                                  |
 
 Severity reflects _how likely a pattern is to be an attack vs. a legitimate feature_. Bidi overrides and the Tags block are essentially never innocent in web copy; zero-width joiners are legitimate in Arabic/Indic scripts and emoji, so they score low. The instruction-phrase detector and all deobfuscation passes are informational only: they false-positive on any page _about_ prompt injection (including the OWASP page and this README).
@@ -150,6 +152,7 @@ For test pages that exercise detection:
 These are detectable in principle, just not implemented (or only partially implemented) today:
 
 - **Payload splitting**: instructions across multiple DOM nodes (OWASP #6).
+- **Cross-element dialogues**: fabricated conversation turns only fire in a single text node. Turns split across sibling elements are not seen as one string.
 - **Adversarial suffixes**: high-entropy gibberish triggers (OWASP #8).
 - **Visible-character obfuscation**: emoji, symbols, or punctuation between words in an instruction phrase ("ignore 🔒 all previous instructions"). Only 🚫 substituting for "ignore"/"disregard" is individually patterned.
 - **Unicode homoglyph blocks not yet normalized**: double-struck, circled, parenthesized, superscript/subscript, and small-caps forms pass through undetected.

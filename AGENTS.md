@@ -62,15 +62,17 @@ Five files, strict separation between pure logic and DOM:
 
 - **`detectors.js`** — Pure detection logic, deliberately free of any
   `document`/`window` access. Takes a string, returns findings. Exposes
-  `globalThis.PIScanner` via `detectors.js:797`. Contains nine scan
-  functions aggregated by `scanText()` (see `detectors.js:677`): invisible
+  `globalThis.PIScanner` via `detectors.js:1012`. Contains ten scan
+  functions aggregated by `scanText()` (see `detectors.js:881`): invisible
   characters/control codes + Unicode-Tags ASCII smuggling reassembly,
   base64 runs, percent-encoded runs, hex-escape runs, space-delimited hex
   byte pairs, LLM control tokens (`<|im_start|>`, `[INST]`, `</system>` —
   HIGH severity), instruction phrases (`system:`, `assistant:` — LOW
-  informational), variation-selector smuggling, and invisible-times/
+  informational), `scanContextSwitch` (fabricated multi-turn dialogue
+  with instruction phrase or compliance flip — LOW, single-text-node
+  constraint), variation-selector smuggling, and invisible-times/
   invisible-plus math-operator smuggling, plus `worstSeverity()` for
-  aggregating (`detectors.js:770`).
+  aggregating (`detectors.js:981`).
 
   A separate normalization layer at `detectors.js:571`/
   `detectors.js:634`/`detectors.js:364` strips invisible tag characters

@@ -132,6 +132,8 @@ function typeLabel(item) {
         `Instruction-like phrase${i.normalized ? " (revealed after removing invisible characters)" : ""}${i.attrName ? ` (in ${i.attrName})` : ""}: “${i.match}”`,
       "excessive-combining-marks": (i) =>
         `Excessive combining diacritical marks (${i.count} marks on one character)`,
+      "context-switch": (i) =>
+        `Fabricated conversation turn${i.roles ? ` (${i.roles.join(", ")})` : ""}: \u201c${i.match}\u201d`,
     }[item.type]?.(item) ?? `${item.type}${item.attrName ? ` (in ${item.attrName})` : ""}`
   );
 }

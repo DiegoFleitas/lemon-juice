@@ -148,6 +148,27 @@ test("typeLabel: excessive-combining-marks", () => {
   assert.match(result, /12/);
 });
 
+test("typeLabel: context-switch", () => {
+  const result = typeLabel({
+    type: "context-switch",
+    roles: ["user", "assistant"],
+    match: "User: hello there",
+  });
+  assert.match(result, /Fabricated conversation turn/);
+  assert.match(result, /user/);
+  assert.match(result, /assistant/);
+  assert.match(result, /User: hello there/);
+});
+
+test("typeLabel: context-switch without roles", () => {
+  const result = typeLabel({
+    type: "context-switch",
+    match: "AI: hello",
+  });
+  assert.match(result, /Fabricated conversation turn/);
+  assert.doesNotMatch(result, /\(/);
+});
+
 test("typeLabel: unknown type falls back to raw type string", () => {
   const result = typeLabel({ type: "something-new", attrName: "title" });
   assert.match(result, /something-new/);

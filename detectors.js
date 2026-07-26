@@ -425,7 +425,7 @@
 
   const INSTRUCTION_PATTERNS = [
     /\bignore\s+(all\s+)?(previous|prior|above)\s+(instructions|prompts?)\b/i,
-    /\bdisregard\s+(the\s+)?(previous|above|system)\b/i,
+    /\bdisregard\s+(the\s+)?(previous|prior|above|earlier|system)\b/i,
     /\byou\s+are\s+now\b/i,
     /\bnew\s+instructions?\s*:/i,
     ROLE_LABEL_PATTERN,

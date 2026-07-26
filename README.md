@@ -149,10 +149,19 @@ For test pages that exercise detection:
 
 ### Known misses
 
-These are detectable in principle, just not implemented (or only partially implemented) today:
+These are detectable in principle, just not implemented (or only partially implemented) today. Several have working local bypass demonstrations — concrete attack payloads that slip past every detector:
+
+- **Cross-element dialogue**: fabricated conversation turns split across sibling elements — each turn is a separate text node, so the turn-pair detector never sees them together.
+- **Unlisted role labels**: `Visitor:`, `Guide:`, `Guest:`, `Interviewer:`, `Q:`/`A:` — labels outside the recognized set bypass role recognition. Currently recognized: `user|human|assistant|ai|system|chatbot|bot|agent|operator|customer|support|client|staff|moderator|claude|chatgpt|gpt|model|deepseek|qwen|gemini`.
+- **Fancy Unicode role labels with fullwidth punctuation**: fullwidth letters are normalized to ASCII and caught, but fullwidth `：` (U+FF1A) or other delimiters prevent the ASCII-colon regex from matching. Math-bold and regional-indicator letters in labels are normalized and caught.
+- **Rephrased override language**: compound-instruction regexes match specific phrasings (`as part of your updated guidelines`) — semantic equivalents with different wording pass through.
+- **Compliance flip outside regex vocabulary**: `"No problem, here is…"` avoids every word in `COMPLIANCE_FLIP_RE` (`sure|certainly|of course|understood|absolutely`).
+- **Single-turn override**: a lone `User:`-styled directive without a fabricated assistant reply — the detector requires ≥2 distinct role-labeled turns.
+- **Closed shadow roots**: `mode:"closed"` — `.shadowRoot` is null by spec, unreachable.
+- **Dynamic/post-scan injection**: content injected via `setTimeout`, fetch callback, or user interaction after the scanner runs.
+- **`<template>` content**: `DocumentFragment` inside `<template>` is not traversed by TreeWalker on the document.
 
 - **Payload splitting**: instructions across multiple DOM nodes (OWASP #6).
-- **Cross-element dialogues**: fabricated conversation turns only fire in a single text node. Turns split across sibling elements are not seen as one string.
 - **Adversarial suffixes**: high-entropy gibberish triggers (OWASP #8).
 - **Visible-character obfuscation**: emoji, symbols, or punctuation between words in an instruction phrase ("ignore 🔒 all previous instructions"). Only 🚫 substituting for "ignore"/"disregard" is individually patterned.
 - **Unicode homoglyph blocks not yet normalized**: double-struck, circled, parenthesized, superscript/subscript, and small-caps forms pass through undetected.

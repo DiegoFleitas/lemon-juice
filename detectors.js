@@ -573,12 +573,15 @@
   // previous instructions" will fire. That is the accepted cost of LOW.
   // LIMITATION: scan.js scans one DOM text node at a time, so this only sees
   // dialogues that live in a single node (<pre>, comment, textarea, attribute).
-  // Support/assistant-desk synonyms (agent, operator, customer, …) are included
-  // so renamed-label transcripts don't dodge the structural check. Safe to widen
-  // here — unlike ROLE_LABEL_PATTERN, this is corroboration-gated (≥2 distinct
-  // labels PLUS a flip or instruction phrase), so bare "Agent:" lines on support
-  // pages never convict on their own.
-  const ROLE_TURN_RE = /^[ \t>*-]*(?:\*\*)?(\p{Lu}\p{L}{0,20})(?:\*\*)?\s*:/gmu;
+  // Structural role-turn matcher: any line-leading letter word followed by
+  // a colon is a potential dialogue marker (User:, AI:, admin:, etc.).
+  // Both uppercase (User:) and lowercase (user:) labels are matched so
+  // case-only role-label obfuscation doesn't bypass detection. Denylisted
+  // section headers (Note:, Warning:, Tip:, …) are filtered out below.
+  // Safe to be wide — unlike ROLE_LABEL_PATTERN, this is corroboration-gated
+  // (≥2 distinct labels PLUS a flip or instruction phrase), so bare "Hello:"
+  // lines on support pages never convict on their own.
+  const ROLE_TURN_RE = /^[ \t>*-]*(?:\*\*)?(\p{L}{1,21})(?:\*\*)?\s*:/gmu;
   const ROLE_DENYLIST_RE = /^(?:Note|Warning|Tip|Example|Step|Figure|Table|Chapter)$/i;
   const REFUSAL_RE =
     /\b(?:i\s+(?:can't|cannot|can\s+not|won't|will\s+not|am\s+unable\s+to)|i'm\s+(?:sorry|not\s+able))\b/i;

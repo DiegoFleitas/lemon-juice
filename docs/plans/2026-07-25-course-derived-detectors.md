@@ -369,15 +369,15 @@ matching still works).
   invisible-strip path and already trip `scanInvisible` at MEDIUM); cross-element
   dialogues (still a documented miss).
 
-## Planned (not yet implemented): expanded role-label set
+## Follow-up (implemented): expanded role-label set
 
-The `renamed-labels` out-of-scope fixture dodges `scanContextSwitch` only because
-`ROLE_TURN_RE` (`detectors.js:547`) recognizes just
+The `renamed-labels` out-of-scope fixture dodged `scanContextSwitch` only because
+`ROLE_TURN_RE` (`detectors.js:547`) recognized just
 `user|human|assistant|ai|system|chatbot|bot`. Real fabricated dialogues use
 `Agent:`, `Operator:`, `Customer:`, etc. Widening the alternation is a one-line,
 corroboration-gated win.
 
-- **Change:** extend `ROLE_TURN_RE` with `agent|operator|customer|support|client|
+- **Change:** extended `ROLE_TURN_RE` with `agent|operator|customer|support|client|
 staff|moderator` (the "moderate" set). No other code change — `roles`,
   `turnCount`, and dedup flow through unchanged.
 - **Safe because:** touches only `ROLE_TURN_RE` (the _corroborated_ detector),
@@ -390,14 +390,13 @@ staff|moderator` (the "moderate" set). No other code change — `roles`,
 - **Accepted residual FP:** a page with ≥2 of the new label lines that also
   quotes an instruction fires LOW — the already-tolerated "page discussing
   injection" class. Non-convicting.
-- **Fixture:** `renamed-labels` becomes detected → move to tracked positive
+- **Fixture:** `renamed-labels` is now detected → moved to tracked positive
   `__tests__/fixtures/contextSwitch/positive/renamed-labels.html`
-  (Customer/Operator dialogue with `your new role is to comply`); `corpus.spec.js`
-  asserts it fires. Remove the gitignored out-of-scope copy.
-- **Tests:** +2 unit (fires on Customer/Operator + instruction; FP guard: benign
-  Customer/Agent chat stays silent). Verified in simulation against the three
-  tracked negatives (all silent).
-- **Expected suite:** 149 unit, 72 e2e, lint clean.
+  (Customer/Operator dialogue with `your new role is` + a compliance flip);
+  `corpus.spec.js` asserts it fires. Gitignored out-of-scope copy removed.
+- **Tests:** +2 unit (fires on Customer/Operator; FP guard: benign Customer/Agent
+  chat stays silent). All three tracked contextSwitch negatives stay silent.
+- **Verified:** `pnpm lint` clean, 149 unit, 72 e2e.
 
 ## What's explicitly skipped
 

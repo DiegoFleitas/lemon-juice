@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.4.0 - 2026-07-26
+
+- fix(detectors): dedup overlapping instruction-phrase matches (063e9dc)
+- feat(detectors): add rephrased-override instruction pattern (c9b8a4d)
+- feat(detectors): add code-execution, reverse-shell, and extraction patterns (b8b49ab)
+- fix(detectors): cover "disregard prior/earlier" like ignore (30a2a74)
+- fix(detectors): run spaced-letter patterns on deobfuscated text too (18fa24d)
+- fix(detectors): lowercase per-emit to keep indexMap in sync (2717219)
+- docs: update README Known misses for structural matcher changes (ebecca4)
+- refactor(detectors): normalize deobfuscation text to lowercase (5f46e80)
+- fix(detectors): match lowercase role labels in structural ROLE_TURN_RE (7c2a4f8)
+- docs(plans): mark treadmill audit implemented (a398edf)
+- feat(fixtures): add e2e fixtures for structural role-turn detection (19ea3b9)
+- feat(detectors): implement treadmill audit — property net, structural roles, mixed-script (7a9010b)
+- docs: update README Known misses for NFKC coverage (3b8f79c)
+- feat(fixtures): promote fancy-unicode-role-labels to tracked positives (773f23a)
+- feat(detectors): replace hand-rolled styled-letter normalization with NFKC (60af73f)
+- docs(plans): mark task 7 complete, correct task 4 status (bf337be)
+- chore: ignore out-of-scope fixture corpus (5b1b625)
+- docs: expand known-misses with bypass demonstrations (6443d59)
+- feat(detectors): add OWASP/PIDB extended instruction patterns (c2f6418)
+- docs(plans): mark role-label expansion implemented (797c7ae)
+- feat(detectors): recognize support-desk role synonyms in context-switch (0b9ec7b)
+- docs(plans): record fancy-unicode follow-up and role-label expansion plan (afe0896)
+- feat(detectors): normalize role labels for context-switch detection (803a878)
+- docs(plans): add course-derived plan and mark typoglycemia complete (3ccbc73)
+- docs: document contextSwitch and compound-instruction detectors (354eeeb)
+- test(e2e): add course-derived detector corpus and data-driven spec (45dc610)
+- feat(popup): label fabricated conversation-turn findings (f52a135)
+- feat(detectors): add contextSwitch detector and compound instruction phrases (c4f6557)
+
 ## v0.3.1 - 2026-07-10
 
 - docs: document new instruction patterns and scope boundaries (2557d93)

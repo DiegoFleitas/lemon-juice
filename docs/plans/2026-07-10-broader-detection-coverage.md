@@ -2,8 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Tasks 1–6 implemented (July 2026); Task 7 outstanding, Task 8
-deferred. Plan extended with Tasks 6–8
+**Status:** Tasks 1–7 implemented (July 2026); Task 8 deferred (YAGNI). Plan
+extended with Tasks 6–8
 after reviewing OWASP Prompt Injection Prevention Cheat Sheet and
 PromptInjectionDatabase.com's regex corpus — the two authoritative sources
 for prompt injection pattern coverage.
@@ -33,9 +33,8 @@ unit tests, Playwright for e2e.
 ## Landing order
 
 Tasks 1–5 are independent. Task 6 (typoglycemia) depended on
-`normalizeDeobfuscated()` which was built in Task 2. Task 7 is independent
-(only touches `scanInstructions`) and is the only remaining work. Task 8 is
-deferred (YAGNI).
+`normalizeDeobfuscated()` which was built in Task 2. Task 7 (only touches
+`scanInstructions`) is done. Only Task 8 remains, deferred (YAGNI).
 
 ## Deferred (add only if seen in a real report)
 
@@ -115,7 +114,13 @@ char loop stays valid. 3 unit tests in `detectors.test.js:892-914`, fixture at
 
 ---
 
-### Task 7: Extended instruction/jailbreak patterns
+### ~~Task 7: Extended instruction/jailbreak patterns~~
+
+**Status:** COMPLETED. Seven patterns appended to `INSTRUCTION_PATTERNS`
+(authority claim, "not bound" role-negation, exact-instructions probe,
+no-restrictions, content-filter/moderation/safety bypass, token gamification,
+confirmation trigger) — all LOW `instruction-phrase`. Positive + benign-FP tests
+in `__tests__/detectors.test.js`. All ride the existing paths; no new type.
 
 **Source:** OWASP Prompt Injection Prevention Cheat Sheet + PromptInjectionDatabase.com
 PIDB signature library.

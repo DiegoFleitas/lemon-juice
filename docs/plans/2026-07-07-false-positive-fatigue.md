@@ -403,7 +403,10 @@ git commit -m "fix(scan): downgrade css-hidden severity for a11y-marked elements
 
 ### Task 4: Fold repeated near-duplicate findings in the popup list (presentation-only)
 
-**Status: not yet implemented.** This is new — found after Tasks 1-3 shipped, not part of the original three-task scope.
+**Status: implemented.** Popup folding lives in `popup.js` — `FOLD_THRESHOLD = 5`
+with `groupKey`-based grouping in `render()` (findings sharing type+fingerprint
+fold into one representative row). Was new after Tasks 1-3 shipped, not part of
+the original three-task scope.
 
 **Files:**
 

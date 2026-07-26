@@ -943,7 +943,7 @@
       }
       return match;
     });
-    return { text: out, indexMap };
+    return { text: out.toLowerCase(), indexMap };
   }
 
   // --- aggregate ------------------------------------------------------------

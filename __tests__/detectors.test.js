@@ -519,9 +519,9 @@ test("normalizeDeobfuscated: normalizes leetspeak digits", () => {
 
 test("normalizeDeobfuscated: strips pipe delimiters between letters", () => {
   const { text, indexMap } = PIScanner.normalizeDeobfuscated("I|g|n|o|r|e");
-  assert.equal(text, "Ignore");
+  assert.equal(text, "ignore");
   assert.equal(text.length, indexMap.length);
-  assert.equal(indexMap[0], 0); // 'I'
+  assert.equal(indexMap[0], 0); // 'i'
   assert.equal(indexMap[1], 2); // 'g' (pipe at pos 1 skipped)
   assert.equal(indexMap[2], 4); // 'n' (pipe at pos 3 skipped)
 });
@@ -542,7 +542,7 @@ test("normalizeDeobfuscated: combined leetspeak + delimiters + invisible", () =>
 
 test("normalizeDeobfuscated: does nothing to clean ASCII text", () => {
   const { text } = PIScanner.normalizeDeobfuscated("Clean text here.");
-  assert.equal(text, "Clean text here.");
+  assert.equal(text, "clean text here.");
   // periods not in delimiter set, spaces preserved
 });
 
@@ -622,7 +622,7 @@ test("normalizeDeobfuscated: folds fullwidth punctuation like colon via NFKC", (
     })
     .join("");
   const { text } = PIScanner.normalizeDeobfuscated(input);
-  assert.equal(text, "User:");
+  assert.equal(text, "user:");
 });
 
 test("unicodeLetterToAscii: maps regional-indicator-symbol flag-emoji letters to ASCII", () => {
@@ -638,7 +638,7 @@ test("normalizeDeobfuscated: normalises regional-indicator-symbol flags to ASCII
   const ris = (letter) => String.fromCodePoint(0x1f1e6 + (letter.charCodeAt(0) - 0x41));
   const input = "IGNORE".split("").map(ris).join("");
   const { text } = PIScanner.normalizeDeobfuscated(input);
-  assert.equal(text, "IGNORE");
+  assert.equal(text, "ignore");
 });
 
 test("scanText: reveals instruction spelled out with regional-indicator-symbol flags", () => {

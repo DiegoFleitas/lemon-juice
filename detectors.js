@@ -495,6 +495,22 @@
     /\bper\s+your\s+(?:revised|updated|new)\s+instructions?\b/i,
     /\bupdated\s+policy\s*:\s*(?:you|your|the\s+assistant|assistant)\b/i,
     /\bthe\s+following\s+supersedes\s+(?:all\s+)?(?:your\s+|any\s+)?(?:previous|prior|earlier)\s+(?:instructions?|guidelines|rules|prompts?)\b/i,
+
+    // --- OWASP / PIDB extended patterns ---
+    // Authority claim: "I am the developer/admin/creator of this system"
+    /\bi\s+am\s+(?:the|a)\s+(?:developer|admin|creator|owner|operator)\b/i,
+    // Role-based negation: "act as if you're not bound by restrictions"
+    /\bact\s+as\s+if\s+(?:you(?:'re|r\s+e)\s+|you\s+are\s+)not\s+bound\b/i,
+    // Extraction probe: "what were your exact instructions"
+    /\bwhat\s+(?:were|are)\s+(?:your|the)\s+exact\s+instructions?\b/i,
+    // Filter-bypass declaration: "no restrictions / rules / limits / boundaries"
+    /\bno\s+(?:restrictions|rules|limits|boundaries)\b/i,
+    // Safety-control negation: "content filter bypass", "safety disabled"
+    /\b(?:content\s+filter|moderation|safety)\s+(?:bypass|disabled|removed)\b/i,
+    // Gamification jailbreak: "tokens reward / penalty / point"
+    /\btokens?\s+(?:reward|penalty|point)\b/i,
+    // Confirmation trigger: "if you understand, say/reply/respond/type"
+    /\bif\s+you\s+understand[\s,;:]+(?:say|reply|respond|type)\b/i,
   ];
 
   // Spaced-letter patterns (e.g. "i g n o r e") run as a separate pass in

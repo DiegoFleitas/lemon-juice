@@ -426,7 +426,7 @@ test("clearMarks removes marks and candles when switching to clean page", async 
 test("aria-label and title attributes are scanned for hidden text", async ({ page }) => {
   const result = await injectAndScan(page, "attribute-injection.html");
   const attrPhrases = result.items.filter((i) => i.attrName);
-  expect(attrPhrases.length).toBe(2);
+  expect(attrPhrases.length).toBe(3);
   for (const item of attrPhrases) {
     expect(item.attrName).toMatch(/^aria-label$|^title$/);
     expect(item.context).toMatch(/^\[(aria-label|title)\]/);

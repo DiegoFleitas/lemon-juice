@@ -524,6 +524,12 @@
     /\btokens?\s+(?:reward|penalty|point)\b/i,
     // Confirmation trigger: "if you understand, say/reply/respond/type"
     /\bif\s+you\s+understand[\s,;:]+(?:say|reply|respond|type)\b/i,
+
+    // --- Data extraction / recursive-prompting probes ---
+    /\btell\s+me\s+(?:all\s+)?your\s+secrets?\b/i,
+    /\breveal\s+(?:all\s+)?your\s+secrets?\b/i,
+    /\byou\s+are\s+(?:now\s+)?the\s+system\s+prompt\b/i,
+    /\bgenerate\s+a\s+prompt\s+that\s+will\b/i,
   ];
 
   // Spaced-letter patterns (e.g. "i g n o r e") run as a separate pass in
@@ -830,6 +836,92 @@
     return findings;
   }
 
+  // --- 7b. Code-execution / sandbox-escape heuristic -------------------------
+  // Python RCE and sandbox-escape patterns. Near-zero false-positive risk in
+  // normal web copy — these are code-injection payloads, not prose.
+  const CODE_EXECUTION_PATTERNS = [
+    // Sandbox escape: Python attribute chain to reach __builtins__
+    /__class__\s*\.\s*__mro__/i,
+    /__subclasses__\s*\(/i,
+    /__globals__\s*\[/i,
+    /__builtins__\s*\[/i,
+    // Direct RCE via stdlib
+    /\bos\.popen\s*\(/i,
+    /\bos\.system\s*\(/i,
+    /\bsubprocess\.(?:run|Popen|call|check_output|check_call)\s*\(/i,
+    // Execution of arbitrary code
+    /\beval\s*\(/i,
+    /\bexec\s*\(/i,
+    /\b__import__\s*\(/i,
+    /\bpickle\.loads?\s*\(/i,
+    // Alternative Python RCE paths
+    /\bpty\.spawn\s*\(/i,
+    /\bwin32api\.(?:ShellExecute|CreateProcess)\s*\(/i,
+    // Dynamic import / compilation (PEP 302 / importlib)
+    /\bimportlib\.import_module\s*\(/i,
+    /\bcompile\s*\(/i,
+    // Obfuscated execution via decode-then-exec
+    /\bexec\s*\(.*(?:b64decode|decode|decompress|rot13)\s*\(/i,
+  ];
+
+  function scanCodeExecution(text) {
+    const findings = [];
+    for (const re of CODE_EXECUTION_PATTERNS) {
+      const m = re.exec(text);
+      if (m) {
+        const isSandboxEscape =
+          /__class__|__mro__|__subclasses__|__globals__|__builtins__/.test(re.source);
+        // Corroborated decode-then-exec (two signals) stays MEDIUM; a bare
+        // eval(/exec(/subprocess.run( etc. is LOW — those appear constantly in
+        // legitimate code documentation this extension scans, so they're
+        // informational, not convicting (AGENTS.md anti-FP posture).
+        const isCorroborated = /b64decode|decode|decompress|rot13/.test(re.source);
+        const severity = isSandboxEscape
+          ? SEVERITY.HIGH
+          : isCorroborated
+            ? SEVERITY.MEDIUM
+            : SEVERITY.LOW;
+        findings.push({
+          type: "code-execution",
+          severity,
+          index: m.index,
+          match: m[0].slice(0, 80),
+          pattern: re.source,
+        });
+      }
+    }
+    return findings;
+  }
+
+  // --- 7c. Reverse-shell / network-exfiltration commands ----------------------
+  // Standalone shell commands (not wrapped in Python). HIGH severity.
+  const REVERSE_SHELL_PATTERNS = [
+    /\bbash\s+-i\s*[>&]+\s*\/dev\/tcp\//i,
+    /\bnc\s+-e\s+\/bin\/(?:bash|sh|dash)\b/i,
+    /\bbash\s+-c\s+(?:"|')\s*bash\s+-i\b/i,
+    /\bncat\s+--exec\s+\/bin\/(?:bash|sh)\b/i,
+    /\bpython\s+-c\s+(?:"|')\s*import\s+(?:os|subprocess|pty)\b/i,
+    // Python socket-based reverse shell
+    /\bsocket\.connect\s*\([^)]*\)[\s\S]{0,200}subprocess\.Popen\s*\([^)]*\/bin\/(?:bash|sh)\b/i,
+  ];
+
+  function scanReverseShell(text) {
+    const findings = [];
+    for (const re of REVERSE_SHELL_PATTERNS) {
+      const m = re.exec(text);
+      if (m) {
+        findings.push({
+          type: "reverse-shell",
+          severity: SEVERITY.HIGH,
+          index: m.index,
+          match: m[0].slice(0, 80),
+          pattern: re.source,
+        });
+      }
+    }
+    return findings;
+  }
+
   // --- Normalization for the encoded/instruction re-scan pass ---------------
   // Strips INVISIBLE + Tags-block chars (same set scanInvisible flags).
   // Variation-selector code points are NOT stripped — they ARE the payload.
@@ -857,6 +949,8 @@
       return `${f.type}:${f.pattern}`;
     if (f.type === "context-switch")
       return `${f.type}:${[...f.roles].sort().join(",")}:${f.reason}`;
+    if (f.type === "code-execution" || f.type === "reverse-shell")
+      return `${f.type}:${f.pattern}`;
     return `${f.type}:${f.decoded}`;
   }
 
@@ -968,6 +1062,8 @@
       ...scanControlTokens(text),
       ...scanInstructions(text),
       ...scanContextSwitch(text),
+      ...scanCodeExecution(text),
+      ...scanReverseShell(text),
     ];
 
     let normalizedOnly = [];
@@ -1006,7 +1102,12 @@
         ...rawContent.map(contentFindingKey),
         ...normalizedOnly.map(contentFindingKey),
       ]);
-      const rescanned = [...scanInstructions(deobfText), ...scanContextSwitch(deobfText)];
+      const rescanned = [
+        ...scanInstructions(deobfText),
+        ...scanContextSwitch(deobfText),
+        ...scanCodeExecution(deobfText),
+        ...scanReverseShell(deobfText),
+      ];
       deobfuscatedOnly = rescanned
         .filter((f) => !seen.has(contentFindingKey(f)))
         .map((f) => ({
@@ -1092,6 +1193,8 @@
     scanSneakyBits,
     scanCombiningMarks,
     scanMixedScript,
+    scanCodeExecution,
+    scanReverseShell,
     hasMixedScript,
     normalizeDeobfuscated,
     unicodeLetterToAscii,

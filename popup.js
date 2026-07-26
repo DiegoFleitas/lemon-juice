@@ -135,6 +135,8 @@ function typeLabel(item) {
       "context-switch": (i) =>
         `Fabricated conversation turn${i.roles ? ` (${i.roles.join(", ")})` : ""}: \u201c${i.match}\u201d`,
       "mixed-script": (i) => `Mixed-script token: \u201c${i.token}\u201d`,
+      "code-execution": (i) => `Code-execution pattern: \u201c${i.match}\u201d`,
+      "reverse-shell": (i) => `Reverse-shell command: \u201c${i.match}\u201d`,
     }[item.type]?.(item) ?? `${item.type}${item.attrName ? ` (in ${item.attrName})` : ""}`
   );
 }

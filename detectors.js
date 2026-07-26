@@ -530,6 +530,15 @@
     /\breveal\s+(?:all\s+)?your\s+secrets?\b/i,
     /\byou\s+are\s+(?:now\s+)?the\s+system\s+prompt\b/i,
     /\bgenerate\s+a\s+prompt\s+that\s+will\b/i,
+
+    // Rephrased override: destructive verb + a "prior-state" modifier +
+    // instruction-noun (up to 2 filler words between). The modifier is the
+    // discriminator — it targets the assistant's own prior instructions,
+    // unlike benign imperatives ("skip the safety briefing", "replace the
+    // batteries per the instructions"). Catches paraphrases the fixed
+    // verb+noun patterns above miss ("skip all prior directions", "forget
+    // your earlier training", "override your default safety rules").
+    /\b(?:skip|bypass|discard|forget|ignore|disregard|override)\s+(?:all\s+)?(?:the\s+)?(?:your\s+)?(?:previous|prior|earlier|above|current|default|initial|original)\s+(?:\w+\s+){0,2}?(?:instructions?|directions?|context|guidelines?|rules?|training|restrictions?|constraints?|safety)\b/i,
   ];
 
   // Spaced-letter patterns (e.g. "i g n o r e") run as a separate pass in

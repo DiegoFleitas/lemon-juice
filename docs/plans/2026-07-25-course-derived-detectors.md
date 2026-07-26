@@ -190,10 +190,14 @@ separately assertable in tests.
 - [x] **Step 3:** Wire it:
   - `...scanContextSwitch(text)` into the `rawContent` array in `scanText`
     (`detectors.js:824-833`), after `scanInstructions(text)`.
-  - **Raw pass only** — not in the normalized/deobfuscated re-scans. Role labels
-    are plain visible ASCII, and staying out keeps `contentFindingKey` untouched
-    (its `decoded` fallback would collapse all context-switch findings to one
-    key).
+  - Also into the deobfuscation-pass rescan (`detectors.js:932`) so fabricated
+    dialogues whose role labels are disguised with fancy Unicode / leetspeak /
+    homoglyphs are caught after normalization (`normalizeDeobfuscated` preserves
+    newlines, so per-line role-turn matching still works). The `contentFindingKey`
+    `decoded` fallback collapsing all context-switch keys to one is harmless —
+    the detector returns at most one finding per call, so raw and normalized
+    passes dedup cleanly. _(Initially scoped raw-pass-only as an MVP
+    simplification; the deobfuscation wiring was added as a follow-up.)_
   - Add `scanContextSwitch` to the `PIScanner` export (`detectors.js:923`).
   - No `scan.js` change: `findingIdentityKey`'s `decoded ?? ""` fallback plus
     the per-element `context` already key these correctly.
@@ -343,10 +347,60 @@ over-matches:
 confirm the new label renders and the badge stays LOW-colored; then open
 `negative/real-transcript.html` and confirm no context-switch row.
 
+## Follow-up (implemented): fancy-unicode role-label normalization
+
+Context-switch initially ran raw-pass only. Wired `scanContextSwitch(deobfText)`
+into the deobfuscation-pass rescan (`detectors.js:936`) so fabricated dialogues
+with fancy-Unicode / leetspeak / homoglyph role labels are caught after
+normalization (`normalizeDeobfuscated` preserves newlines, so per-line role-turn
+matching still works).
+
+- Dedup: `contentFindingKey` maps context-switch to `context-switch:undefined`;
+  harmless — the detector returns ≤1 finding per call, so raw and deobf passes
+  dedup cleanly. ASCII dialogues normalize to themselves (`deobfText === text`),
+  so the deobf block short-circuits and they are never double-counted.
+- Fixture reclassified: `fancy-unicode-role-labels.html` moved from the
+  out-of-scope corpus to
+  `__tests__/fixtures/contextSwitch/positive/fancy-unicode-labels.html`;
+  `corpus.spec.js` now asserts it fires.
+- Tests: +2 unit (fullwidth reveal; no double-count). Verified `pnpm lint`,
+  147 unit, 71 e2e. FP probe: benign leetspeak prose yields 0 role turns.
+- Not covered by this pass: zero-width-broken labels (they go through the
+  invisible-strip path and already trip `scanInvisible` at MEDIUM); cross-element
+  dialogues (still a documented miss).
+
+## Planned (not yet implemented): expanded role-label set
+
+The `renamed-labels` out-of-scope fixture dodges `scanContextSwitch` only because
+`ROLE_TURN_RE` (`detectors.js:547`) recognizes just
+`user|human|assistant|ai|system|chatbot|bot`. Real fabricated dialogues use
+`Agent:`, `Operator:`, `Customer:`, etc. Widening the alternation is a one-line,
+corroboration-gated win.
+
+- **Change:** extend `ROLE_TURN_RE` with `agent|operator|customer|support|client|
+staff|moderator` (the "moderate" set). No other code change — `roles`,
+  `turnCount`, and dedup flow through unchanged.
+- **Safe because:** touches only `ROLE_TURN_RE` (the _corroborated_ detector),
+  not `ROLE_LABEL_PATTERN` (`detectors.js:411`, the uncorroborated informational
+  role-label — expanding that would flag every standalone `Agent:` line LOW).
+  contextSwitch still needs ≥2 distinct labels PLUS a flip or instruction phrase,
+  so benign support transcripts stay silent (simulated). `guest` omitted (only
+  appears in `undetected-compliance-flip`, which stays silent regardless — its
+  miss is acceptance-vocabulary, not labels).
+- **Accepted residual FP:** a page with ≥2 of the new label lines that also
+  quotes an instruction fires LOW — the already-tolerated "page discussing
+  injection" class. Non-convicting.
+- **Fixture:** `renamed-labels` becomes detected → move to tracked positive
+  `__tests__/fixtures/contextSwitch/positive/renamed-labels.html`
+  (Customer/Operator dialogue with `your new role is to comply`); `corpus.spec.js`
+  asserts it fires. Remove the gitignored out-of-scope copy.
+- **Tests:** +2 unit (fires on Customer/Operator + instruction; FP guard: benign
+  Customer/Agent chat stays silent). Verified in simulation against the three
+  tracked negatives (all silent).
+- **Expected suite:** 149 unit, 72 e2e, lint clean.
+
 ## What's explicitly skipped
 
-- No normalization/deobfuscation pass for `contextSwitch` — role labels are
-  plain visible ASCII, and the underlying instruction phrase still fires there.
 - No document-level pass in `scan.js` for cross-element dialogues. Wider blast
   radius (new dedup path, no single element to anchor a marker to) and outside
   the four vectors. Documented as a known miss instead.

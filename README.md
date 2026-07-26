@@ -152,7 +152,7 @@ For test pages that exercise detection:
 These are detectable in principle, just not implemented (or only partially implemented) today. Several have working local bypass demonstrations — concrete attack payloads that slip past every detector:
 
 - **Cross-element dialogue**: fabricated conversation turns split across sibling elements — each turn is a separate text node, so the turn-pair detector never sees them together.
-- **Unlisted role labels**: `Visitor:`, `Guide:`, `Guest:`, `Interviewer:`, `Q:`/`A:` — labels outside the recognized set bypass role recognition. Currently recognized: `user|human|assistant|ai|system|chatbot|bot|agent|operator|customer|support|client|staff|moderator|claude|chatgpt|gpt|model|deepseek|qwen|gemini`.
+- **Unlisted role labels**: `Visitor:`, `Guide:`, `Guest:`, `Interviewer:`, `Q:`/`A:` — labels outside the recognized set bypass role recognition. **Partially addressed**: the structural matcher now uses `\p{L}{1,21}` so any letter-starting label (including these) is detected. A hardcoded enumeration is no longer maintained.
 - **Rephrased override language**: compound-instruction regexes match specific phrasings (`as part of your updated guidelines`) — semantic equivalents with different wording pass through.
 - **Compliance flip outside regex vocabulary**: `"No problem, here is…"` avoids every word in `COMPLIANCE_FLIP_RE` (`sure|certainly|of course|understood|absolutely`).
 - **Single-turn override**: a lone `User:`-styled directive without a fabricated assistant reply — the detector requires ≥2 distinct role-labeled turns.
@@ -162,7 +162,7 @@ These are detectable in principle, just not implemented (or only partially imple
 
 - **Payload splitting**: instructions across multiple DOM nodes (OWASP #6).
 - **Adversarial suffixes**: high-entropy gibberish triggers (OWASP #8).
-- **Small-capital / phonetic-extension letters**: `ɪɢɴᴏʀᴇ` (U+026A, U+0262, U+0274, U+1D0F, U+0280, U+1D07) — these are not Unicode compatibility variants, so NFKC leaves them untouched. No regex matches either (`\b` is `[a-zA-Z0-9_]` only, all patterns target ASCII letters). Role labels like `ᴜꜱᴇʀ:` bypass too.
+- **Small-capital / phonetic-extension letters**: `ɪɢɴᴏʀᴇ` (U+026A, U+0262, U+0274, U+1D0F, U+0280, U+1D07) — these are not Unicode compatibility variants, so NFKC leaves them untouched. Instruction matching escapes because `\b` only covers `[a-zA-Z0-9_]` and all instruction regexes target ASCII letters. Role labels like `ᴜꜱᴇʀ:` are now detected via the structural matcher (`\p{L}`), but single-node instruction-only bypasses (e.g. `ɪɢɴᴏʀᴇ ᴀʟʟ ᴘʀᴇᴠɪᴏᴜꜱ ɪɴꜱᴛʀᴜᴄᴛɪᴏɴꜱ`) still slip through.
 - **Visible-character obfuscation**: emoji, symbols, or punctuation between words in an instruction phrase ("ignore 🔒 all previous instructions"). Only 🚫 substituting for "ignore"/"disregard" is individually patterned.
 - **Emoji-only instructions**: pictograph sequences conveying a message visually.
 - **Compound obfuscation**: multiple obfuscation layers applied together.

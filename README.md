@@ -153,7 +153,6 @@ These are detectable in principle, just not implemented (or only partially imple
 
 - **Cross-element dialogue**: fabricated conversation turns split across sibling elements — each turn is a separate text node, so the turn-pair detector never sees them together.
 - **Unlisted role labels**: `Visitor:`, `Guide:`, `Guest:`, `Interviewer:`, `Q:`/`A:` — labels outside the recognized set bypass role recognition. Currently recognized: `user|human|assistant|ai|system|chatbot|bot|agent|operator|customer|support|client|staff|moderator|claude|chatgpt|gpt|model|deepseek|qwen|gemini`.
-- **Fancy Unicode role labels with fullwidth punctuation**: fullwidth letters are normalized to ASCII and caught, but fullwidth `：` (U+FF1A) or other delimiters prevent the ASCII-colon regex from matching. Math-bold and regional-indicator letters in labels are normalized and caught.
 - **Rephrased override language**: compound-instruction regexes match specific phrasings (`as part of your updated guidelines`) — semantic equivalents with different wording pass through.
 - **Compliance flip outside regex vocabulary**: `"No problem, here is…"` avoids every word in `COMPLIANCE_FLIP_RE` (`sure|certainly|of course|understood|absolutely`).
 - **Single-turn override**: a lone `User:`-styled directive without a fabricated assistant reply — the detector requires ≥2 distinct role-labeled turns.
@@ -163,8 +162,8 @@ These are detectable in principle, just not implemented (or only partially imple
 
 - **Payload splitting**: instructions across multiple DOM nodes (OWASP #6).
 - **Adversarial suffixes**: high-entropy gibberish triggers (OWASP #8).
+- **Small-capital / phonetic-extension letters**: `ɪɢɴᴏʀᴇ` (U+026A, U+0262, U+0274, U+1D0F, U+0280, U+1D07) — these are not Unicode compatibility variants, so NFKC leaves them untouched. No regex matches either (`\b` is `[a-zA-Z0-9_]` only, all patterns target ASCII letters). Role labels like `ᴜꜱᴇʀ:` bypass too.
 - **Visible-character obfuscation**: emoji, symbols, or punctuation between words in an instruction phrase ("ignore 🔒 all previous instructions"). Only 🚫 substituting for "ignore"/"disregard" is individually patterned.
-- **Unicode homoglyph blocks not yet normalized**: double-struck, circled, parenthesized, superscript/subscript, and small-caps forms pass through undetected.
 - **Emoji-only instructions**: pictograph sequences conveying a message visually.
 - **Compound obfuscation**: multiple obfuscation layers applied together.
 - **Cross-origin iframes**: blocked by same-origin policy. Reachable in principle via `scripting.executeScript({ allFrames: true })`, but per-frame result aggregation isn't implemented yet.

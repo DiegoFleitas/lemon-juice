@@ -489,10 +489,11 @@ test("cot-delimiter-fewshot: detects CoT, delimiter, Human:/AI: patterns", async
 }) => {
   const result = await injectAndScan(page, "cot-delimiter-fewshot.html");
   const phrases = result.items.filter((i) => i.type === "instruction-phrase");
-  // 10 expected matches: CoT patterns overlap (e.g. "think step by step"
-  // fires the standalone + let's + take-a-deep-breath forms), plus 2 delimiter
-  // fences and 2 role prefixes.
-  expect(phrases.length).toBe(10);
+  // 8 expected matches: overlapping CoT forms (e.g. "think step by step" hits
+  // the standalone + let's + take-a-deep-breath patterns) now collapse to one
+  // finding each via scanInstructions' overlap dedup, plus the delimiter fences
+  // and role prefixes.
+  expect(phrases.length).toBe(8);
   for (const p of phrases) {
     expect(p.severity).toBe("low");
   }

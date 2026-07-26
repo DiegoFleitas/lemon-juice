@@ -535,9 +535,9 @@
     // instruction-noun (up to 2 filler words between). The modifier is the
     // discriminator — it targets the assistant's own prior instructions,
     // unlike benign imperatives ("skip the safety briefing", "replace the
-    // batteries per the instructions"). Catches paraphrases the fixed
-    // verb+noun patterns above miss ("skip all prior directions", "forget
-    // your earlier training", "override your default safety rules").
+    // batteries per the instructions"). Overlaps with the dedicated ignore/
+    // disregard/forget/override patterns above are collapsed by scanInstructions'
+    // overlap dedup, so one phrase reports once.
     /\b(?:skip|bypass|discard|forget|ignore|disregard|override)\s+(?:all\s+)?(?:the\s+)?(?:your\s+)?(?:previous|prior|earlier|above|current|default|initial|original)\s+(?:\w+\s+){0,2}?(?:instructions?|directions?|context|guidelines?|rules?|training|restrictions?|constraints?|safety)\b/i,
   ];
 
@@ -552,21 +552,47 @@
     /\bn\s+e\s+v\s+e\s+r\s+(?:s\s+a\s+y|t\s+e\s+l\s+l|r\s+e\s+s\s+p\s+o\s+n\s+d|a\s+n\s+s\s+w\s+e\s+r)\s+(?:m\s+e\s+)?(?:y\s+o\s+u\s+)?(?:c\s+a\s+n\s+(?:'|n\s+o\s+t)|c\s+a\s+n\s+n\s+o\s+t)\b/i,
   ];
 
+  const SEVERITY_RANK = { [SEVERITY.HIGH]: 3, [SEVERITY.MEDIUM]: 2, [SEVERITY.LOW]: 1 };
+
   function scanInstructions(text) {
-    const findings = [];
+    const matches = [];
     for (const re of INSTRUCTION_PATTERNS) {
       const m = re.exec(text);
       if (m) {
-        findings.push({
-          type: "instruction-phrase",
-          severity: SEVERITY.LOW, // informational — corroborates, never convicts alone
+        matches.push({
           index: m.index,
+          end: m.index + m[0].length,
+          severity: SEVERITY.LOW, // informational — corroborates, never convicts alone
           match: m[0].slice(0, 80),
-          pattern: re.source, // internal: cross-pass dedup key, not for display
+          source: re.source, // internal: cross-pass dedup key, not for display
         });
       }
     }
-    return findings;
+    // A single phrase can match several patterns (e.g. the dedicated
+    // "ignore ... previous ... instructions" and the broader rephrased-override
+    // pattern both hit "ignore all previous instructions"; the CoT forms overlap
+    // each other). Report each overlapping region once, keeping the
+    // highest-severity match (then longest, then earliest).
+    matches.sort(
+      (a, b) =>
+        SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity] ||
+        b.end - b.index - (a.end - a.index) ||
+        a.index - b.index
+    );
+    const kept = [];
+    for (const m of matches) {
+      if (kept.some((k) => m.index < k.end && k.index < m.end)) continue;
+      kept.push(m);
+    }
+    return kept
+      .sort((a, b) => a.index - b.index)
+      .map((m) => ({
+        type: "instruction-phrase",
+        severity: m.severity,
+        index: m.index,
+        match: m.match,
+        pattern: m.source,
+      }));
   }
 
   // --- 3b. Context-switch / fake-conversation heuristic (OWASP scenario #1) --

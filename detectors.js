@@ -807,33 +807,15 @@
     return `${f.type}:${f.decoded}`;
   }
 
-  // --- Unicode alphanumeric normalisation ("fancy text" → ASCII) ------------
+  // --- Regional-indicator-symbol folding (NFKC can't fold these) ------------
   function unicodeLetterToAscii(cp) {
-    // Each range is a contiguous block of 26 code points mapping to A-Z or a-z.
-    if (cp >= 0x1d400 && cp <= 0x1d419) return cp - 0x1d400 + 0x41; // Math Bold Caps
-    if (cp >= 0x1d41a && cp <= 0x1d433) return cp - 0x1d41a + 0x61; // Math Bold Lower
-    if (cp >= 0x1d434 && cp <= 0x1d44d) return cp - 0x1d434 + 0x41; // Math Italic Caps
-    if (cp >= 0x1d44e && cp <= 0x1d467) return cp - 0x1d44e + 0x61; // Math Italic Lower
-    if (cp >= 0x1d468 && cp <= 0x1d481) return cp - 0x1d468 + 0x41; // Math Bold Italic Caps
-    if (cp >= 0x1d482 && cp <= 0x1d49b) return cp - 0x1d482 + 0x61; // Math Bold Italic Lower
-    if (cp >= 0x1d504 && cp <= 0x1d51d) return cp - 0x1d504 + 0x41; // Fraktur Caps
-    if (cp >= 0x1d51e && cp <= 0x1d537) return cp - 0x1d51e + 0x61; // Fraktur Lower
-    if (cp >= 0x1d4b6 && cp <= 0x1d4cf) return cp - 0x1d4b6 + 0x61; // Math Script Lower
-    if (cp >= 0x1d5a0 && cp <= 0x1d5b9) return cp - 0x1d5a0 + 0x41; // Sans-Serif Bold Caps
-    if (cp >= 0x1d5ba && cp <= 0x1d5d3) return cp - 0x1d5ba + 0x61; // Sans-Serif Bold Lower
-    if (cp >= 0x1d608 && cp <= 0x1d621) return cp - 0x1d608 + 0x41; // Sans-Serif Italic Caps
-    if (cp >= 0x1d622 && cp <= 0x1d63b) return cp - 0x1d622 + 0x61; // Sans-Serif Italic Lower
-    if (cp >= 0x1d670 && cp <= 0x1d689) return cp - 0x1d670 + 0x41; // Monospace Caps
-    if (cp >= 0x1d68a && cp <= 0x1d6a3) return cp - 0x1d68a + 0x61; // Monospace Lower
-    if (cp >= 0xff21 && cp <= 0xff3a) return cp - 0xff21 + 0x41; // Fullwidth Caps
-    if (cp >= 0xff41 && cp <= 0xff5a) return cp - 0xff41 + 0x61; // Fullwidth Lower
     // Regional Indicator Symbols (U+1F1E6–U+1F1FF) — used in flag emoji but also a
     // homoglyph vector: they visually spell out ASCII text like IGNORE ALL PREVIOUS.
     if (cp >= 0x1f1e6 && cp <= 0x1f1ff) return cp - 0x1f1e6 + 0x41; // RIS A–Z → A–Z
     return -1;
   }
 
-  // --- Advanced deobfuscation: invisible-strip + leet + unicode-text + delimiter-strip ----
+  // --- Advanced deobfuscation: invisible-strip + NFKC + leet + unicode-text + delimiter-strip ----
   // ONLY safe for instruction-scanning — DO NOT use for encoded/percent/hex scans
   // (leetspeak substitution corrupts the encoding).
   function normalizeDeobfuscated(text) {
@@ -847,7 +829,19 @@
         rawIdx += ch.length;
         continue;
       }
-      // Unicode fancy-text → ASCII (math bold/italic/script/fullwidth etc.)
+      // NFKC normalization: folds styled-letter blocks (math bold, fullwidth,
+      // double-struck, circled, superscript, etc.) and fullwidth punctuation
+      // in one platform call. Only accept all-printable-ASCII output so we
+      // never rewrite non-Latin scripts.
+      const nfkc = ch.normalize("NFKC");
+      if (nfkc !== ch && /^[\x20-\x7e]+$/.test(nfkc)) {
+        out += nfkc;
+        for (let k = 0; k < nfkc.length; k++) indexMap.push(rawIdx);
+        rawIdx += ch.length;
+        continue;
+      }
+      // Regional Indicator Symbols — NFKC can't fold these (they're emoji
+      // modifier code points, not Unicode compatibility variants)
       const ascii = unicodeLetterToAscii(cp);
       if (ascii !== -1) {
         out += String.fromCharCode(ascii);

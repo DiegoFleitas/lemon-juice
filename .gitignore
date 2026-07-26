@@ -13,6 +13,9 @@ coverage/
 test-results/
 playwright-report/
 
+# Out-of-scope fixture corpus — known-bypass examples, workspace-local only
+__tests__/fixtures-out-of-scope/
+
 # OS / editor junk
 .DS_Store
 Thumbs.db

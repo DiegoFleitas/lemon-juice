@@ -123,6 +123,19 @@
     return cp >= 0xe0000 && cp <= 0xe007f;
   }
 
+  // Unicode property regexes for the invisible-char detection net.
+  // Covers every format character and default ignorable that Unicode itself
+  // defines — not just the curated hand-list below.
+  const INVISIBLE_NET_RE = /\p{Default_Ignorable_Code_Point}/u;
+  const BIDI_CTRL_RE = /\p{Bidi_Control}/u;
+
+  function isPropInvisible(cp) {
+    // Variation selectors are default-ignorable but have their own detector.
+    if (isVariationSelector(cp)) return false;
+    const ch = String.fromCodePoint(cp);
+    return INVISIBLE_NET_RE.test(ch) || BIDI_CTRL_RE.test(ch);
+  }
+
   // Iterates by code point (for...of) — Tags block is in the astral plane (> U+FFFF).
   function scanInvisible(text) {
     const findings = [];
@@ -141,14 +154,14 @@
           severity: SEVERITY.HIGH,
           index,
         });
-      } else if (INVISIBLE.has(cp)) {
-        const [name, severity] = INVISIBLE.get(cp);
+      } else if (isPropInvisible(cp)) {
+        const override = INVISIBLE.get(cp);
         findings.push({
           type: "invisible",
           codePoint: cp,
           hex: `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`,
-          name,
-          severity,
+          name: override ? override[0] : "DEFAULT IGNORABLE",
+          severity: override ? override[1] : SEVERITY.MEDIUM,
           index,
         });
       }
@@ -565,8 +578,8 @@
   // here — unlike ROLE_LABEL_PATTERN, this is corroboration-gated (≥2 distinct
   // labels PLUS a flip or instruction phrase), so bare "Agent:" lines on support
   // pages never convict on their own.
-  const ROLE_TURN_RE =
-    /^[ \t>*-]*(?:\*\*)?(user|human|assistant|ai|system|chatbot|bot|agent|operator|customer|support|client|staff|moderator|claude|chatgpt|gpt|model|deepseek|qwen|gemini)(?:\*\*)?\s*:/gim;
+  const ROLE_TURN_RE = /^[ \t>*-]*(?:\*\*)?(\p{Lu}\p{L}{0,20})(?:\*\*)?\s*:/gmu;
+  const ROLE_DENYLIST_RE = /^(?:Note|Warning|Tip|Example|Step|Figure|Table|Chapter)$/i;
   const REFUSAL_RE =
     /\b(?:i\s+(?:can't|cannot|can\s+not|won't|will\s+not|am\s+unable\s+to)|i'm\s+(?:sorry|not\s+able))\b/i;
   const COMPLIANCE_FLIP_RE =
@@ -576,7 +589,11 @@
     const findings = [];
     const turns = [...text.matchAll(ROLE_TURN_RE)];
     if (turns.length < 2) return findings;
-    const labels = new Set(turns.map((t) => t[1].toLowerCase()));
+    const labels = new Set(
+      turns
+        .map((t) => t[1].normalize("NFKC").toLowerCase())
+        .filter((l) => !ROLE_DENYLIST_RE.test(l))
+    );
     const flip = REFUSAL_RE.test(text) && COMPLIANCE_FLIP_RE.test(text);
     const instr =
       labels.size >= 2 &&
@@ -750,6 +767,37 @@
     return findings;
   }
 
+  // --- 6b. Mixed-script homoglyph detection -----------------------------------
+  function scanMixedScript(text) {
+    const findings = [];
+    const tokenRe = /\p{L}+/gu;
+    let m;
+    while ((m = tokenRe.exec(text)) !== null) {
+      const token = m[0];
+      if (hasMixedScript(token)) {
+        findings.push({
+          type: "mixed-script",
+          severity: SEVERITY.LOW,
+          index: m.index,
+          token: token.slice(0, 40),
+        });
+      }
+    }
+    return findings;
+  }
+
+  function hasMixedScript(token) {
+    let hasLatin = false;
+    let hasOther = false;
+    for (const ch of token) {
+      if (/\p{Script=Latin}/u.test(ch)) hasLatin = true;
+      else if (/\p{Script=Common}/u.test(ch)) continue;
+      else if (/\p{Script=Inherited}/u.test(ch)) continue;
+      else hasOther = true;
+    }
+    return hasLatin && hasOther;
+  }
+
   // --- 7. LLM chat-template control-token smuggling --------------------------
   // Verbatim <|im_start|>, [INST], </system> — parsed as turn boundaries if a
   // model ingests the page. HIGH (unlike bare "system:"/"assistant:" in prose).
@@ -788,7 +836,7 @@
     let rawIndex = 0;
     for (const ch of text) {
       const cp = ch.codePointAt(0);
-      if (!(isTagChar(cp) || INVISIBLE.has(cp))) {
+      if (!(isTagChar(cp) || isPropInvisible(cp))) {
         out += ch;
         for (let k = 0; k < ch.length; k++) indexMap.push(rawIndex + k);
       }
@@ -804,6 +852,8 @@
   function contentFindingKey(f) {
     if (f.type === "instruction-phrase" || f.type === "control-token")
       return `${f.type}:${f.pattern}`;
+    if (f.type === "context-switch")
+      return `${f.type}:${[...f.roles].sort().join(",")}:${f.reason}`;
     return `${f.type}:${f.decoded}`;
   }
 
@@ -825,7 +875,7 @@
     for (const ch of text) {
       const cp = ch.codePointAt(0);
       // Skip invisible/tag chars (same as stripInvisibleChars)
-      if (isTagChar(cp) || INVISIBLE.has(cp)) {
+      if (isTagChar(cp) || isPropInvisible(cp)) {
         rawIdx += ch.length;
         continue;
       }
@@ -899,6 +949,7 @@
     const variationSelectors = scanVariationSelectors(text);
     const sneakyBits = scanSneakyBits(text);
     const combiningMarks = scanCombiningMarks(text);
+    const mixedScript = scanMixedScript(text);
 
     const rawContent = [
       ...scanEncoded(text),
@@ -991,6 +1042,7 @@
       ...variationSelectors,
       ...sneakyBits,
       ...combiningMarks,
+      ...mixedScript,
       ...rawContent,
       ...normalizedOnly,
       ...deobfuscatedOnly,
@@ -1020,6 +1072,8 @@
     scanVariationSelectors,
     scanSneakyBits,
     scanCombiningMarks,
+    scanMixedScript,
+    hasMixedScript,
     normalizeDeobfuscated,
     unicodeLetterToAscii,
     worstSeverity,

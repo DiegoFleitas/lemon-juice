@@ -134,6 +134,7 @@ function typeLabel(item) {
         `Excessive combining diacritical marks (${i.count} marks on one character)`,
       "context-switch": (i) =>
         `Fabricated conversation turn${i.roles ? ` (${i.roles.join(", ")})` : ""}: \u201c${i.match}\u201d`,
+      "mixed-script": (i) => `Mixed-script token: \u201c${i.token}\u201d`,
     }[item.type]?.(item) ?? `${item.type}${item.attrName ? ` (in ${item.attrName})` : ""}`
   );
 }

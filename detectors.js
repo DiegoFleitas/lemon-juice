@@ -921,7 +921,11 @@
     }
 
     // Deobfuscation pass: leetspeak + delimiter stripping, then re-scan
-    // instructions (encoded scans skipped — leet/delimiter norm would corrupt them).
+    // instructions and context-switch (encoded scans skipped — leet/delimiter
+    // norm would corrupt them). Running scanContextSwitch here catches fabricated
+    // dialogues whose role labels are disguised with fancy Unicode, leetspeak,
+    // homoglyphs, etc. — normalizeDeobfuscated preserves newlines, so the
+    // per-line role-turn matching still works on the normalized text.
     let deobfuscatedOnly = [];
     const { text: deobfText, indexMap: deobfIndexMap } = normalizeDeobfuscated(text);
     if (deobfText !== text) {
@@ -929,7 +933,7 @@
         ...rawContent.map(contentFindingKey),
         ...normalizedOnly.map(contentFindingKey),
       ]);
-      const rescanned = scanInstructions(deobfText);
+      const rescanned = [...scanInstructions(deobfText), ...scanContextSwitch(deobfText)];
       deobfuscatedOnly = rescanned
         .filter((f) => !seen.has(contentFindingKey(f)))
         .map((f) => ({

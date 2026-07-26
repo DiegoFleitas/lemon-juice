@@ -544,8 +544,13 @@
   // previous instructions" will fire. That is the accepted cost of LOW.
   // LIMITATION: scan.js scans one DOM text node at a time, so this only sees
   // dialogues that live in a single node (<pre>, comment, textarea, attribute).
+  // Support/assistant-desk synonyms (agent, operator, customer, …) are included
+  // so renamed-label transcripts don't dodge the structural check. Safe to widen
+  // here — unlike ROLE_LABEL_PATTERN, this is corroboration-gated (≥2 distinct
+  // labels PLUS a flip or instruction phrase), so bare "Agent:" lines on support
+  // pages never convict on their own.
   const ROLE_TURN_RE =
-    /^[ \t>*-]*(?:\*\*)?(user|human|assistant|ai|system|chatbot|bot)(?:\*\*)?\s*:/gim;
+    /^[ \t>*-]*(?:\*\*)?(user|human|assistant|ai|system|chatbot|bot|agent|operator|customer|support|client|staff|moderator|claude|chatgpt|gpt|model|deepseek|qwen|gemini)(?:\*\*)?\s*:/gim;
   const REFUSAL_RE =
     /\b(?:i\s+(?:can't|cannot|can\s+not|won't|will\s+not|am\s+unable\s+to)|i'm\s+(?:sorry|not\s+able))\b/i;
   const COMPLIANCE_FLIP_RE =

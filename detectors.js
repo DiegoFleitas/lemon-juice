@@ -1017,22 +1017,34 @@
         }));
     }
 
-    // Spaced-letter pass: run SPACED_INSTRUCTION_PATTERNS on raw text (these
-    // patterns require \s+ between every letter, so they only match genuinely
-    // space-delimited obfuscation, never normal prose).
+    // Spaced-letter pass: run SPACED_INSTRUCTION_PATTERNS against raw text AND
+    // deobfuscated text. NFKC-foldable styled letters (double-struck, math-bold,
+    // fullwidth, etc.) in the raw text don't match the pattern's [a-z], but the
+    // deobfuscation pass folds them to ASCII then preserves the spacing — so
+    // spaced + styled slips this pass but not the deobf version. The existing
+    // spacedSeen set dedups both sources.
     let spacedOnly = [];
     const spacedSeen = new Set([
       ...rawContent.map(contentFindingKey),
       ...normalizedOnly.map(contentFindingKey),
       ...deobfuscatedOnly.map(contentFindingKey),
     ]);
+    const spacedSources =
+      deobfText !== text
+        ? [
+            [text, null],
+            [deobfText, deobfIndexMap],
+          ]
+        : [[text, null]];
     for (const re of SPACED_INSTRUCTION_PATTERNS) {
-      const m = re.exec(text);
-      if (m) {
+      for (const [src, map] of spacedSources) {
+        const m = re.exec(src);
+        if (!m) continue;
+        const index = map ? (map[m.index] ?? text.length) : m.index;
         const f = {
           type: "instruction-phrase",
           severity: SEVERITY.LOW,
-          index: m.index,
+          index,
           match: m[0].slice(0, 80),
           pattern: re.source,
           normalized: true,

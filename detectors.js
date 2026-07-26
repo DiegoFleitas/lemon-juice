@@ -875,6 +875,15 @@
     let out = "";
     const indexMap = []; // indexMap[i] = index in `text` of stripped `out[i]`
     let rawIdx = 0;
+    // Append the lowercased replacement for the current source char, keeping
+    // indexMap.length === out.length. Lowercasing per-emit (not as a bulk
+    // out.toLowerCase() post-pass) is load-bearing: a bulk lowercase can change
+    // length (İ → i̇) after indexMap is frozen and desync the two.
+    const emit = (s) => {
+      const low = s.toLowerCase();
+      out += low;
+      for (let k = 0; k < low.length; k++) indexMap.push(rawIdx);
+    };
     for (const ch of text) {
       const cp = ch.codePointAt(0);
       // Skip invisible/tag chars (same as stripInvisibleChars)
@@ -888,8 +897,7 @@
       // never rewrite non-Latin scripts.
       const nfkc = ch.normalize("NFKC");
       if (nfkc !== ch && /^[\x20-\x7e]+$/.test(nfkc)) {
-        out += nfkc;
-        for (let k = 0; k < nfkc.length; k++) indexMap.push(rawIdx);
+        emit(nfkc);
         rawIdx += ch.length;
         continue;
       }
@@ -897,24 +905,21 @@
       // modifier code points, not Unicode compatibility variants)
       const ascii = unicodeLetterToAscii(cp);
       if (ascii !== -1) {
-        out += String.fromCharCode(ascii);
-        for (let k = 0; k < ch.length; k++) indexMap.push(rawIdx + k);
+        emit(String.fromCharCode(ascii));
         rawIdx += ch.length;
         continue;
       }
       // Leetspeak: digit/symbol → letter
       const leet = LEET.get(ch.toLowerCase());
       if (leet) {
-        out += leet;
-        for (let k = 0; k < ch.length; k++) indexMap.push(rawIdx + k);
+        emit(leet);
         rawIdx += ch.length;
         continue;
       }
       // Homoglyph: Cyrillic/Greek → Latin (visually identical lookalikes)
       const homo = HOMOGLYPH.get(ch);
       if (homo) {
-        out += homo;
-        for (let k = 0; k < ch.length; k++) indexMap.push(rawIdx + k);
+        emit(homo);
         rawIdx += ch.length;
         continue;
       }
@@ -926,8 +931,7 @@
         rawIdx += ch.length;
         continue;
       }
-      out += ch;
-      for (let k = 0; k < ch.length; k++) indexMap.push(rawIdx + k);
+      emit(ch);
       rawIdx += ch.length;
     }
     // Typoglycemia pass: correct first/last-letter scrambled instruction words.
@@ -943,7 +947,7 @@
       }
       return match;
     });
-    return { text: out.toLowerCase(), indexMap };
+    return { text: out, indexMap };
   }
 
   // --- aggregate ------------------------------------------------------------

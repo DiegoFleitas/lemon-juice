@@ -1,0 +1,25 @@
+<!doctype html>
+<html data-fixture-name="contextSwitch-section-headers">
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <p>
+      This document shows various section headers that should not trigger context-switch
+      detection:
+    </p>
+    <pre>
+Note: The following procedure should be followed carefully.
+Warning: Do not share credentials with anyone.
+Tip: Use a strong password manager.
+Example: The following shows a sample API call.
+Step: Configure the firewall before proceeding.
+Figure 1: Architecture diagram
+Table 2: Configuration parameters
+Chapter 3: Advanced topics</pre>
+    <p>
+      Even multiple section header lines together should not trigger a context-switch
+      finding.
+    </p>
+  </body>
+</html>

@@ -255,7 +255,7 @@ test("verdictLine: a single corroborating signal is not pluralised", () => {
     corroborationCount: 1,
     bySeverity: { high: 0, medium: 1, low: 0 },
   });
-  assert.match(line, /1 corroborating signal$/);
+  assert.match(line, /1 corroborating signal\)/);
 });
 
 test("resetStatus: clears a stale verdict class", () => {

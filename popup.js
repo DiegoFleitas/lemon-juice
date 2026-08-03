@@ -123,7 +123,7 @@ const CORROBORATION_LABEL = {
 const VERDICT_LABEL = {
   // Deliberately not "Hidden characters" — a css-hidden-only or
   // instruction-phrase-only page reaches this tier with nothing invisible.
-  noise: "Findings present — nothing corroborating",
+  noise: "Findings present, nothing corroborating",
   suspicious: "Suspicious",
   "likely-injection": "Likely injection attempt",
 };
@@ -144,7 +144,7 @@ function verdictLine(r) {
     ? `, ${r.corroborationCount} corroborating signal${r.corroborationCount === 1 ? "" : "s"}`
     : "";
   const label = VERDICT_LABEL[r.verdict] ?? r.verdict;
-  return `${label} — ${r.count} finding${r.count === 1 ? "" : "s"}: ${parts.join(", ")}${corroborating}`;
+  return `${label}: ${r.count} finding${r.count === 1 ? "" : "s"} (${parts.join(", ")}${corroborating})`;
 }
 
 // Findings carry decoded payloads at full length so detectors.js can re-scan

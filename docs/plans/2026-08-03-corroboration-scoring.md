@@ -1055,7 +1055,7 @@ const VERDICT_LABEL = {
   // Deliberately not "Hidden characters" — a css-hidden-only or
   // instruction-phrase-only page reaches this tier with no invisible
   // character involved.
-  noise: "Findings present — nothing corroborating",
+  noise: "Findings present, nothing corroborating",
   suspicious: "Suspicious",
   "likely-injection": "Likely injection attempt",
 };
@@ -1069,7 +1069,7 @@ function verdictLine(r) {
     ? `, ${r.corroborationCount} corroborating signal${r.corroborationCount === 1 ? "" : "s"}`
     : "";
   const label = VERDICT_LABEL[r.verdict] ?? r.verdict;
-  return `${label} — ${r.count} finding${r.count === 1 ? "" : "s"}: ${parts.join(", ")}${corroborating}`;
+  return `${label}: ${r.count} finding${r.count === 1 ? "" : "s"} (${parts.join(", ")}${corroborating})`;
 }
 ```
 
@@ -1464,7 +1464,7 @@ git commit -m "docs: describe corroboration scoring and verdict tiers"
 
 1. Load via `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** → `manifest.json`.
 2. Open `__tests__/fixtures/corroborated-payload.html`. Expect: red badge, headline "Likely injection attempt", and a `└ decoded text contains…` sub-line under the base64 finding.
-3. Open `__tests__/fixtures/lone-zero-width.html` (created in Task 8). Expect: blue badge, headline "Findings present — nothing corroborating". This is the noise-reduction win — verify it, because it is the change most likely to be wrong.
+3. Open `__tests__/fixtures/lone-zero-width.html` (created in Task 8). Expect: blue badge, headline "Findings present, nothing corroborating". This is the noise-reduction win — verify it, because it is the change most likely to be wrong.
    **Not `invisible-chars.html`** — that fixture carries `&#x202E;` (RIGHT-TO-LEFT OVERRIDE, HIGH), so it correctly lands at `suspicious`/amber. Likewise not `repeated-findings.html` or `zero-width-split.html`: both put their zero-width space _inside_ an instruction phrase, so co-location promotes them on purpose.
 4. Open `__tests__/fixtures/jwt-decoy.html`. Expect: stays quiet.
 5. Open `__tests__/fixtures/encoded-showcase.html`. Expect: amber — the accepted false positive. Confirm it reads as a plausible judgement call rather than an obvious mistake; if it looks absurd in the UI, that is a signal to revisit the accepted-FP decision.

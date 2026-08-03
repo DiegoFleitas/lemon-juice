@@ -79,23 +79,23 @@ Severity starts from _how likely a pattern is to be an attack vs. a legitimate f
 
 Severity is then **earned rather than fixed**, because a mechanism alone says little. Two things can raise it:
 
-- **Payload corroboration.** Every decoded payload — base64, percent-encoding, hex escapes, variation selectors, the reassembled Unicode-Tags string — is re-scanned for injected content. A blob whose payload contains an LLM control token or a reverse shell convicts on its own and goes to HIGH; one containing instruction-like prose moves a single step. A corroborator is weighted by _its own_ severity, so a bare `eval(` inside a decoded code sample stays informational.
+- **Payload corroboration.** Every decoded payload (base64, percent-encoding, hex escapes, variation selectors, the reassembled Unicode-Tags string) is re-scanned for injected content. A blob whose payload carries an LLM control token or a reverse shell convicts on its own and goes to HIGH; one carrying instruction-like prose moves a single step. Each corroborator is weighted by its own severity, so a bare `eval(` inside a decoded code sample stays informational.
 - **Proven concealment.** A phrase that only became readable after stripping invisible characters or undoing leetspeak/homoglyphs, or one sitting in an HTML comment, an attribute, or genuinely hidden (non-accessibility) text, moves a step. Mere proximity does not count: an invisible character elsewhere in the same paragraph is not evidence.
 
-That distinction is what separates a page _carrying_ an injection from a page _about_ one. Documentation and security writeups keep their instruction-like text visible, so they do not climb.
+A page carrying an injection hides its instructions. A page about one leaves them in plain sight, which is why documentation and security writeups do not climb.
 
 The popup leads with a page verdict rather than a raw count:
 
-| Verdict            | Meaning                                                                                   |
-| ------------------ | ----------------------------------------------------------------------------------------- |
-| `clean`            | Nothing found                                                                             |
-| `noise`            | Findings, but nothing corroborating and nothing high — a lone zero-width space lands here |
-| `suspicious`       | A high-severity finding, or one corroborated finding                                      |
-| `likely-injection` | A corroborated high-severity finding, or two independently corroborated findings          |
+| Verdict            | Meaning                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| `clean`            | Nothing found                                                                            |
+| `noise`            | Findings, but nothing corroborating and nothing high. A lone zero-width space lands here |
+| `suspicious`       | A high-severity finding, or one corroborated finding                                     |
+| `likely-injection` | A corroborated high-severity finding, or two independently corroborated findings         |
 
 There is deliberately **no 0–100 score**. That model suits a scanner reading a closed, enumerable input such as a manifest permission list, where the denominator is real. A web page's finding space is unbounded and there is no external reputation signal to moderate a composite with, so a number would imply precision the input cannot support.
 
-**Known accepted false positive:** a page that _demonstrates_ prompt injection by showing an encoded payload scores the same as one carrying it. The bytes an LLM ingests are identical, and "showcase vs. carry" is not mechanically decidable, so this is left in rather than papered over with intent-guessing heuristics. This is a detection aid — a human makes the call.
+**Known accepted false positive:** a page that _demonstrates_ prompt injection by showing an encoded payload scores the same as one carrying it. The bytes an LLM ingests are identical, and "showcase vs. carry" is not mechanically decidable, so this is left in rather than papered over with intent-guessing heuristics. This is a detection aid. A human makes the call.
 
 ## Scope
 

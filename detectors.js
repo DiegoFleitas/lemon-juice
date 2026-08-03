@@ -1132,11 +1132,30 @@
     "reverse-shell",
   ]);
   const SUPPORTING_CORROBORATION = new Set(["instruction-phrase", "context-switch"]);
-  const BUMP = {
+  // Saturates at HIGH. Two consumers apply this table — promoteSeverity here,
+  // and applyContextualPromotion (Task 4) — so a corroboration/context type
+  // recognized by both paths would compound across them.
+  const NEXT_SEVERITY = {
     [SEVERITY.LOW]: SEVERITY.MEDIUM,
     [SEVERITY.MEDIUM]: SEVERITY.HIGH,
     [SEVERITY.HIGH]: SEVERITY.HIGH,
   };
+
+  // A corroborator's weight is its OWN severity, not merely its type.
+  // scanCodeExecution deliberately emits LOW for a bare eval(/exec( — those are
+  // everywhere in legitimate code documentation — so treating them as
+  // convicting would resurrect the false-positive fatigue this scoring work
+  // exists to reduce. Its MEDIUM tier (corroborated decode-then-exec) still
+  // counts, but only as support.
+  //   2 = convicts on its own, 1 = supports (one step), 0 = informational only
+  function corroborationRank(x) {
+    if (CONVICTING_CORROBORATION.has(x.type)) {
+      if (x.severity === SEVERITY.HIGH) return 2;
+      if (x.severity === SEVERITY.MEDIUM) return 1;
+      return 0;
+    }
+    return SUPPORTING_CORROBORATION.has(x.type) ? 1 : 0;
+  }
 
   function promoteSeverity(finding) {
     const c = finding.corroboration;
@@ -1145,11 +1164,13 @@
     // to suppress *uncorroborated* noise. A JWT-shaped blob whose payload
     // carries injected instructions is the decoy case scanEncoded's comment
     // explicitly wants surfaced.
-    const next = c.some((x) => CONVICTING_CORROBORATION.has(x.type))
-      ? SEVERITY.HIGH
-      : c.some((x) => SUPPORTING_CORROBORATION.has(x.type))
-        ? BUMP[finding.severity]
-        : finding.severity;
+    const rank = Math.max(0, ...c.map(corroborationRank));
+    const next =
+      rank === 2
+        ? SEVERITY.HIGH
+        : rank === 1
+          ? NEXT_SEVERITY[finding.severity]
+          : finding.severity;
     if (next === finding.severity) return finding;
     return { ...finding, severity: next, promotedFrom: finding.severity };
   }

@@ -1654,3 +1654,33 @@ test("scanText: a JWT-shaped decoy carrying real instructions still promotes", (
   assert.equal(promoted.promotedFrom, PIScanner.SEVERITY.LOW);
   assert.equal(promoted.severity, PIScanner.SEVERITY.MEDIUM);
 });
+
+test("promoteSeverity: a LOW code-execution corroboration does not convict", () => {
+  // scanCodeExecution's LOW tier is bare eval(/exec( — ubiquitous in
+  // legitimate code documentation, explicitly informational.
+  const finding = {
+    type: "encoded-base64",
+    severity: PIScanner.SEVERITY.MEDIUM,
+    corroboration: [{ type: "code-execution", severity: PIScanner.SEVERITY.LOW }],
+  };
+  assert.equal(PIScanner.promoteSeverity(finding), finding);
+});
+
+test("promoteSeverity: a MEDIUM code-execution corroboration supports but does not convict", () => {
+  const promoted = PIScanner.promoteSeverity({
+    type: "encoded-base64",
+    severity: PIScanner.SEVERITY.LOW,
+    corroboration: [{ type: "code-execution", severity: PIScanner.SEVERITY.MEDIUM }],
+  });
+  assert.equal(promoted.severity, PIScanner.SEVERITY.MEDIUM);
+});
+
+test("scanText: a base64 code sample containing eval( does not reach HIGH", () => {
+  const blob = Buffer.from(
+    "function render(t){ return eval(t); } // demo helper"
+  ).toString("base64");
+  const findings = PIScanner.scanText(`Example: ${blob}`);
+  const parent = findings.find((f) => f.type === "encoded-base64");
+  assert.ok(parent, "expected the base64 blob to be found");
+  assert.notEqual(parent.severity, PIScanner.SEVERITY.HIGH);
+});

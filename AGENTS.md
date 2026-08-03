@@ -18,7 +18,7 @@ files are loaded directly by the browser as content scripts.
 
 ```sh
 pnpm install
-pnpm test       # node --test — runs __tests__/*.test.js (pure, DOM-free)
+pnpm test       # node --test — runs __tests__/**/*.test.js (pure, DOM-free)
 pnpm test:e2e   # playwright test — runs __tests__/e2e/*.spec.js (browser, fixtures)
 pnpm lint       # eslint . && prettier --check .
 pnpm format     # prettier --write .
@@ -62,8 +62,8 @@ Five files, strict separation between pure logic and DOM:
 
 - **`detectors.js`** — Pure detection logic, deliberately free of any
   `document`/`window` access. Takes a string, returns findings. Exposes
-  `globalThis.PIScanner` via `detectors.js:1012`. Contains ten scan
-  functions aggregated by `scanText()` (see `detectors.js:881`): invisible
+  `globalThis.PIScanner` at the bottom of the IIFE. The scan functions are
+  aggregated by `scanText()` (grep `function scanText`): invisible
   characters/control codes + Unicode-Tags ASCII smuggling reassembly,
   base64 runs, percent-encoded runs, hex-escape runs, space-delimited hex
   byte pairs, LLM control tokens (`<|im_start|>`, `[INST]`, `</system>` —
@@ -72,7 +72,7 @@ Five files, strict separation between pure logic and DOM:
   with instruction phrase or compliance flip — LOW, single-text-node
   constraint), variation-selector smuggling, and invisible-times/
   invisible-plus math-operator smuggling, plus `worstSeverity()` for
-  aggregating (`detectors.js:981`).
+  aggregating.
 
   **Scoring layer.** `scanText` ends with
   `scanDecodedPayloads([...]).map(promoteSeverity)`:
@@ -90,8 +90,8 @@ Five files, strict separation between pure logic and DOM:
   `promoteSeverity` and `applyContextualPromotion`, so a type reachable
   by both would compound — see its comment.
 
-  A separate normalization layer at `detectors.js:571`/
-  `detectors.js:634`/`detectors.js:364` strips invisible tag characters
+  A separate normalization layer (`stripInvisibleChars`,
+  `normalizeDeobfuscated`, `unicodeLetterToAscii`) strips invisible tag characters
   and normalizes obfuscated text (fancy Unicode → ASCII, leetspeak,
   delimiter stripping, space-delimited-letter patterns) before
   re-running the instruction and encoded-blob scans. If you're adding
@@ -103,8 +103,8 @@ Five files, strict separation between pure logic and DOM:
   scanner and tests. Dual-export (global + CJS) matching the `detectors.js`
   pattern. Contains `elementHidesText`, `elementIsA11yHidden`,
   `isTransparentBg`, `resolveBackgroundColor`, `luminance`,
-  `collectRoots`, `deepQuerySelector`, and others (see the full export list
-  at `scan-helpers.js:192`). `resolveBackgroundColor` walks the ancestor
+  `collectRoots`, `deepQuerySelector`, and others (see the `Helpers` export
+  object at the bottom of the file). `resolveBackgroundColor` walks the ancestor
   chain (through shadow-host boundaries) for a non-transparent background,
   falling back to `<body>`/`<html>`, and returns `null` when nothing paints a
   real background. It deliberately does **not** guess the system `Canvas`
@@ -157,8 +157,11 @@ Five files, strict separation between pure logic and DOM:
 - **`popup.js` / `popup.html`** — On popup open, injects `detectors.js` then
   `scan-helpers.js` then `scan.js` into the active tab via
   `browser.scripting.executeScript`, reads back `window.__PIScanResult` with
-  a follow-up call, renders findings grouped/colored by severity, and sets
-  the toolbar badge count/color.
+  a follow-up call, and renders the result: a page-verdict headline
+  (`verdictLine`), then findings grouped/colored by severity with a `└`
+  sub-line per corroboration reason. The toolbar badge count is high+medium,
+  but its **colour tracks the verdict**, not the worst single finding — an
+  uncorroborated MEDIUM reads blue, not amber.
 
 **Injection order is load-bearing:** `detectors.js` must be injected before
 `scan-helpers.js` before `scan.js` (see the `files: [...]` array in `popup.js`)
@@ -181,16 +184,16 @@ New detection logic belongs in `detectors.js` as a pure function operating on
 a string, added to the aggregate list in `scanText()`, and returning findings
 shaped like the existing ones (`type`, `severity`, `index`, plus whatever
 type-specific fields the popup's `render()` in `popup.js` needs to label
-them). Any new `item.type` also needs a case added to the label switch in
-`popup.js`'s `render()` function, or it'll fall through to the raw `type`
-string.
+them). Any new `item.type` also needs an entry in `popup.js`'s `typeLabel()`
+map — not `render()`, which only groups and folds — or it'll fall through to
+the raw `type` string.
 
 That's the right shape for a new hiding _mechanism_ (a new kind of invisible
 character, encoding scheme, etc.). If instead you're adding a new way to
 _disguise_ letters or words in already-visible text, extend the
 normalization layer in the `detectors.js` bullet above (`unicodeLetterToAscii`'s
-range table at `detectors.js:386`, the `LEET` map at `detectors.js:48`, or the
-delimiter-strip regex at `detectors.js:661`) so it feeds the existing
+range table, the `LEET` map, or the delimiter-strip regex in
+`normalizeDeobfuscated`) so it feeds the existing
 `scanInstructions` re-scan, rather than writing a parallel `scanX` function
 that reimplements its own normalization.
 

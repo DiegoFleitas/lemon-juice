@@ -88,11 +88,20 @@
   }
 
   // Best-effort, not exhaustive — see docs/plans for why we don't fully suppress.
+  // Framework-specific screen-reader-only class names. Worth keeping broad:
+  // this list is what stops an accessible chat transcript
+  // (<span class="element-invisible">Assistant:</span>) from corroborating
+  // itself into a HIGH finding in applyContextualPromotion.
   const A11Y_HIDDEN_CLASSES = [
     "sr-only",
     "visually-hidden",
+    "visuallyhidden", // HTML5 Boilerplate
     "offscreen",
-    "screen-reader-text",
+    "screen-reader-text", // WordPress
+    "element-invisible", // Drupal
+    "a11y-hidden",
+    "assistive-text", // WordPress (older)
+    "hidden-visually",
   ];
 
   function elementIsA11yHidden(el) {

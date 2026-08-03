@@ -1175,19 +1175,12 @@
     return { ...finding, severity: next, promotedFrom: finding.severity };
   }
 
-  const CONCEALMENT_TYPES = new Set([
-    "invisible",
-    "unicode-tag",
-    "css-hidden",
-    "variation-selector-smuggling",
-    "sneaky-bits-smuggling",
-  ]);
+  // Derived, not a third parallel list: these are exactly the types that can
+  // corroborate a payload, so a new content detector registered in one place
+  // cannot silently go missing from the other.
   const CONTENT_TYPES = new Set([
-    "instruction-phrase",
-    "control-token",
-    "context-switch",
-    "code-execution",
-    "reverse-shell",
+    ...CONVICTING_CORROBORATION,
+    ...SUPPORTING_CORROBORATION,
   ]);
 
   // Text a human never sees but an LLM ingesting the DOM does. Deliberately
@@ -1209,7 +1202,26 @@
   // Cross-finding corroboration, the between-detector analogue of
   // scanDecodedPayloads' within-finding check. Takes scan.js's deduped item
   // array (pure — no DOM), returns a new array with promotions applied.
+  //
+  // Co-location counts only when the concealment was applied to the CONTENT
+  // itself. "An invisible character appears somewhere in the same element" is
+  // not evidence — targetId is node.parentElement, so two findings 1800 chars
+  // apart in one <pre> would qualify. A docs code block explaining a chat
+  // prompt format, plus one stray U+200B soft-wrap from a CMS, would convict.
   function applyContextualPromotion(items) {
+    const reasons = new Map(); // item -> Set<string>
+    const note = (item, reason) => {
+      const s = reasons.get(item) || new Set();
+      s.add(reason);
+      reasons.set(item, s);
+    };
+
+    // Signal B: content sitting inside genuinely hidden text. likelyA11y is
+    // excluded from *corroborating* (it can still be promoted by something
+    // else): sr-only markup is normally the site's own accessibility work, and
+    // an attacker who injects text rarely also authors the host stylesheet.
+    // Without this, <span class="sr-only">Assistant:</span> — the standard
+    // accessible chat transcript — scores HIGH.
     const byTarget = new Map();
     for (const item of items) {
       for (const id of itemTargets(item)) {
@@ -1218,30 +1230,27 @@
         byTarget.set(id, arr);
       }
     }
-
-    const reasons = new Map(); // item -> Set<string>
-    const note = (item, reason) => {
-      const s = reasons.get(item) || new Set();
-      s.add(reason);
-      reasons.set(item, s);
-    };
-
-    // A hiding mechanism and injected content on the same element corroborate
-    // each other. Two mechanisms, or two content findings, do not.
     for (const group of byTarget.values()) {
-      const concealment = group.filter((i) => CONCEALMENT_TYPES.has(i.type));
+      const hidden = group.filter((i) => i.type === "css-hidden" && !i.likelyA11y);
       const content = group.filter((i) => CONTENT_TYPES.has(i.type));
-      if (!concealment.length || !content.length) continue;
-      for (const i of concealment) note(i, "co-located with injected content");
-      for (const i of content) note(i, "co-located with a concealment mechanism");
+      if (!hidden.length || !content.length) continue;
+      for (const i of hidden) note(i, "co-located with injected content");
+      for (const i of content) note(i, "inside visually hidden text");
     }
 
     for (const item of items) {
       if (!CONTENT_TYPES.has(item.type)) continue;
+      // Signal A: the phrase itself was obfuscated — it only became readable
+      // after stripping invisible characters or undoing leetspeak/homoglyphs.
+      // Direct proof the hiding was done to this very phrase.
+      if (item.normalized) note(item, "revealed only after removing concealment");
+      // Signal C
       const where = concealedPlacement(item);
       if (where) note(item, where);
     }
 
+    // Reasons accumulate but severity moves at most ONE step regardless of how
+    // many fire — contextual.length is evidence count, not severity weight.
     return items.map((item) => {
       const why = reasons.get(item);
       if (!why) return item;

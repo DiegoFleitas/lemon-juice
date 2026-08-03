@@ -2,7 +2,13 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { snippet, colorFor, luminance, isTransparentBg } = require("../scan-helpers.js");
+const {
+  snippet,
+  colorFor,
+  luminance,
+  isTransparentBg,
+  elementIsA11yHidden,
+} = require("../scan-helpers.js");
 
 test("snippet: short text is returned as-is", () => {
   assert.equal(snippet("hello world"), "hello world");
@@ -88,4 +94,40 @@ test("isTransparentBg: opaque colors return false", () => {
   assert.equal(isTransparentBg("rgb(255, 255, 255)"), false);
   assert.equal(isTransparentBg("rgba(0, 0, 0, 0.5)"), false);
   assert.equal(isTransparentBg("rgba(255, 0, 0, 0)"), false);
+});
+
+// elementIsA11yHidden only touches getAttribute and classList.contains, so a
+// two-method stub covers it without a DOM harness.
+function stubEl(className, ariaHidden) {
+  const classes = className ? className.split(" ") : [];
+  return {
+    getAttribute: (name) => (name === "aria-hidden" ? (ariaHidden ?? null) : null),
+    classList: { contains: (c) => classes.includes(c) },
+  };
+}
+
+test("elementIsA11yHidden: aria-hidden", () => {
+  assert.equal(elementIsA11yHidden(stubEl("", "true")), true);
+  assert.equal(elementIsA11yHidden(stubEl("", "false")), false);
+});
+
+test("elementIsA11yHidden: framework screen-reader-only classes", () => {
+  // These are what stop an accessible chat transcript
+  // (<span class="element-invisible">Assistant:</span>) from corroborating
+  // itself into a HIGH finding via applyContextualPromotion.
+  for (const c of [
+    "sr-only",
+    "visually-hidden",
+    "visuallyhidden",
+    "element-invisible",
+    "assistive-text",
+    "a11y-hidden",
+    "hidden-visually",
+    "screen-reader-text",
+  ])
+    assert.equal(elementIsA11yHidden(stubEl(c)), true, c);
+});
+
+test("elementIsA11yHidden: ordinary classes are not a11y-hidden", () => {
+  assert.equal(elementIsA11yHidden(stubEl("container prose")), false);
 });

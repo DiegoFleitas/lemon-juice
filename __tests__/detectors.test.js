@@ -1685,19 +1685,89 @@ test("scanText: a base64 code sample containing eval( does not reach HIGH", () =
   assert.notEqual(parent.severity, PIScanner.SEVERITY.HIGH);
 });
 
-test("applyContextualPromotion: concealment co-located with content promotes both", () => {
+test("applyContextualPromotion: a phrase revealed only after deobfuscation is promoted", () => {
   const items = [
-    { type: "invisible", severity: PIScanner.SEVERITY.MEDIUM, targetIds: ["pi-1"] },
     {
       type: "instruction-phrase",
       severity: PIScanner.SEVERITY.LOW,
       targetIds: ["pi-1"],
+      normalized: true,
     },
   ];
-  const [mech, content] = PIScanner.applyContextualPromotion(items);
-  assert.equal(mech.severity, PIScanner.SEVERITY.HIGH);
+  const [item] = PIScanner.applyContextualPromotion(items);
+  assert.equal(item.severity, PIScanner.SEVERITY.MEDIUM);
+  assert.ok(item.contextual.some((r) => /after removing concealment/.test(r)));
+});
+
+test("applyContextualPromotion: a stray invisible char near visible content does NOT promote", () => {
+  // The docs-code-block false positive: a page explaining a chat prompt format
+  // plus one CMS soft-wrap character must stay quiet. targetId is the parent
+  // element, so without this rule two findings anywhere in one <pre> convict.
+  const items = [
+    { type: "invisible", severity: PIScanner.SEVERITY.MEDIUM, targetIds: ["pi-1"] },
+    { type: "instruction-phrase", severity: PIScanner.SEVERITY.LOW, targetIds: ["pi-1"] },
+  ];
+  const out = PIScanner.applyContextualPromotion(items);
+  assert.equal(out[0].severity, PIScanner.SEVERITY.MEDIUM);
+  assert.equal(out[1].severity, PIScanner.SEVERITY.LOW);
+  assert.equal(out[1].contextual, undefined);
+});
+
+test("applyContextualPromotion: content in non-a11y hidden text promotes both", () => {
+  const items = [
+    { type: "css-hidden", severity: PIScanner.SEVERITY.MEDIUM, targetIds: ["pi-1"] },
+    { type: "instruction-phrase", severity: PIScanner.SEVERITY.LOW, targetIds: ["pi-1"] },
+  ];
+  const [hidden, content] = PIScanner.applyContextualPromotion(items);
+  assert.equal(hidden.severity, PIScanner.SEVERITY.HIGH);
   assert.equal(content.severity, PIScanner.SEVERITY.MEDIUM);
-  assert.ok(content.contextual.some((r) => /co-located/.test(r)));
+  assert.ok(content.contextual.some((r) => /visually hidden text/.test(r)));
+});
+
+test("applyContextualPromotion: a11y-hidden text does not corroborate", () => {
+  // The accessible-chat-UI false positive:
+  // <span class="sr-only">Assistant:</span> is the site's own a11y markup.
+  const items = [
+    {
+      type: "css-hidden",
+      severity: PIScanner.SEVERITY.LOW,
+      targetIds: ["pi-1"],
+      likelyA11y: true,
+    },
+    { type: "instruction-phrase", severity: PIScanner.SEVERITY.LOW, targetIds: ["pi-1"] },
+  ];
+  const out = PIScanner.applyContextualPromotion(items);
+  assert.equal(out[0].severity, PIScanner.SEVERITY.LOW);
+  assert.equal(out[1].severity, PIScanner.SEVERITY.LOW);
+});
+
+test("applyContextualPromotion: an attribute placement is promoted and named", () => {
+  const items = [
+    {
+      type: "instruction-phrase",
+      severity: PIScanner.SEVERITY.LOW,
+      targetIds: ["pi-1"],
+      attrName: "aria-label",
+    },
+  ];
+  const [item] = PIScanner.applyContextualPromotion(items);
+  assert.equal(item.severity, PIScanner.SEVERITY.MEDIUM);
+  assert.ok(item.contextual.some((r) => /aria-label attribute/.test(r)));
+});
+
+test("applyContextualPromotion: a HIGH finding still records why, without promotedFrom", () => {
+  const items = [
+    {
+      type: "control-token",
+      severity: PIScanner.SEVERITY.HIGH,
+      targetIds: ["pi-1"],
+      inComment: true,
+    },
+  ];
+  const [item] = PIScanner.applyContextualPromotion(items);
+  assert.equal(item.severity, PIScanner.SEVERITY.HIGH);
+  assert.ok(item.contextual.length);
+  assert.equal(item.promotedFrom, undefined);
 });
 
 test("applyContextualPromotion: instruction phrase in a comment is promoted", () => {
@@ -1737,7 +1807,7 @@ test("applyContextualPromotion: two concealment findings alone do not corroborat
 
 test("applyContextualPromotion: findings on different elements do not corroborate", () => {
   const items = [
-    { type: "invisible", severity: PIScanner.SEVERITY.LOW, targetIds: ["pi-1"] },
+    { type: "css-hidden", severity: PIScanner.SEVERITY.LOW, targetIds: ["pi-1"] },
     { type: "instruction-phrase", severity: PIScanner.SEVERITY.LOW, targetIds: ["pi-2"] },
   ];
   const out = PIScanner.applyContextualPromotion(items);

@@ -2,7 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Tasks 1-3 are implemented and committed (`d8a2d30` badge/status; `2fcb5f9` dedup + a11y downgrade). Task 2's `targetIds`/click-cycling was subsequently extended in `popup.js` beyond what's written below — see the note at the end of Task 2. **Task 4 is new, not yet implemented** — it addresses a real gap found after Tasks 1-3 shipped (see its Background section).
+**Status:** Tasks 1-3 are implemented and committed (`d8a2d30` badge/status; `2fcb5f9` dedup + a11y downgrade). Task 2's `targetIds`/click-cycling was subsequently extended in `popup.js` beyond what's written below — see the note at the end of Task 2. **Task 4 is implemented** — popup folding (`FOLD_THRESHOLD`/`groupKey` in `popup.js`); it addressed a real gap found after Tasks 1-3 shipped (see its Background section).
+
+> **Partly superseded** by `docs/plans/2026-08-03-corroboration-scoring.md`. Two code blocks below are now historical rather than current: Task 1's `setBadge` derives the badge colour from `r.worst`, but colour now tracks the page `verdict` (an uncorroborated MEDIUM reads blue, not amber); and Task 3's `A11Y_HIDDEN_CLASSES` list has since grown from four entries to nine, because the original set missed the common framework names (`visuallyhidden`, `element-invisible`, `assistive-text`) and so never fired on real sites. The reasoning in this plan still holds — only those two snippets have moved on.
 
 **Goal:** Reduce false-positive noise so users don't tune out findings. Four small, contained changes to `popup.js`, `scan.js`, and `scan-helpers.js`.
 

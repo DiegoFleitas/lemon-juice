@@ -1121,6 +1121,39 @@
     return findings;
   }
 
+  // Corroboration promotes, never demotes. A concealment mechanism whose
+  // payload carries chat-template or executable content is no longer
+  // ambiguous, so it goes straight to HIGH. One that merely carries
+  // instruction-like prose moves a single step, consistent with instruction
+  // phrases being informational on their own.
+  const CONVICTING_CORROBORATION = new Set([
+    "control-token",
+    "code-execution",
+    "reverse-shell",
+  ]);
+  const SUPPORTING_CORROBORATION = new Set(["instruction-phrase", "context-switch"]);
+  const BUMP = {
+    [SEVERITY.LOW]: SEVERITY.MEDIUM,
+    [SEVERITY.MEDIUM]: SEVERITY.HIGH,
+    [SEVERITY.HIGH]: SEVERITY.HIGH,
+  };
+
+  function promoteSeverity(finding) {
+    const c = finding.corroboration;
+    if (!c || !c.length) return finding;
+    // No likelyJwt/likelyA11y exemption here on purpose: those dampeners exist
+    // to suppress *uncorroborated* noise. A JWT-shaped blob whose payload
+    // carries injected instructions is the decoy case scanEncoded's comment
+    // explicitly wants surfaced.
+    const next = c.some((x) => CONVICTING_CORROBORATION.has(x.type))
+      ? SEVERITY.HIGH
+      : c.some((x) => SUPPORTING_CORROBORATION.has(x.type))
+        ? BUMP[finding.severity]
+        : finding.severity;
+    if (next === finding.severity) return finding;
+    return { ...finding, severity: next, promotedFrom: finding.severity };
+  }
+
   // --- aggregate ------------------------------------------------------------
   function scanText(text) {
     const invisible = scanInvisible(text);
@@ -1244,7 +1277,7 @@
       ...normalizedOnly,
       ...deobfuscatedOnly,
       ...spacedOnly,
-    ]);
+    ]).map(promoteSeverity);
   }
 
   function worstSeverity(findings) {
@@ -1273,6 +1306,7 @@
     scanCodeExecution,
     scanReverseShell,
     scanDecodedPayloads,
+    promoteSeverity,
     hasMixedScript,
     normalizeDeobfuscated,
     unicodeLetterToAscii,

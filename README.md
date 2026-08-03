@@ -55,7 +55,7 @@ Patterns essentially never legitimate in web copy, or well-filtered against comm
 
 ### Informational (heuristic)
 
-Prone to false positives on legitimate pages that discuss prompt injection. Never raise overall severity on their own.
+Prone to false positives on legitimate pages that discuss prompt injection, so they never convict on their own. Corroboration, or evidence that the text was deliberately concealed, can promote them. See [Severity and the page verdict](#severity-and-the-page-verdict) below.
 
 | Category                                                        | Examples                                                                                                     |
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -122,7 +122,7 @@ For unattended agents, the defense has to live in the agent. [Claude for Chrome]
 > [!NOTE]
 > Temporary add-ons are removed when Firefox restarts. Reload from `about:debugging` to bring it back during development.
 
-**AMO listing:** coming once v0.1 is published.
+**AMO listing:** not yet submitted. Planned for 1.0, when the lemon ripens.
 
 ## Develop
 
@@ -191,7 +191,7 @@ These are detectable in principle, just not implemented (or only partially imple
 - **Small-capital / phonetic-extension letters**: `ɪɢɴᴏʀᴇ` (U+026A, U+0262, U+0274, U+1D0F, U+0280, U+1D07) — these are not Unicode compatibility variants, so NFKC leaves them untouched. Instruction matching escapes because `\b` only covers `[a-zA-Z0-9_]` and all instruction regexes target ASCII letters. Role labels like `ᴜꜱᴇʀ:` are now detected via the structural matcher (`\p{L}`), but single-node instruction-only bypasses (e.g. `ɪɢɴᴏʀᴇ ᴀʟʟ ᴘʀᴇᴠɪᴏᴜꜱ ɪɴꜱᴛʀᴜᴄᴛɪᴏɴꜱ`) still slip through.
 - **Visible-character obfuscation**: emoji, symbols, or punctuation between words in an instruction phrase ("ignore 🔒 all previous instructions"). Only 🚫 substituting for "ignore"/"disregard" is individually patterned.
 - **Emoji-only instructions**: pictograph sequences conveying a message visually.
-- **Compound obfuscation**: multiple obfuscation layers applied together.
+- **Compound obfuscation built on an undetected primitive**: the normalization passes do compose. NFKC fancy-Unicode, leetspeak, delimiter stripping and spaced letters stack, so a double-struck phrase written with spaced letters is still caught. Layering only helps for primitives the normalizer already knows, though, so anything built on a miss listed above (small caps, visible-character obfuscation) slips through however the layers combine.
 - **Cross-origin iframes**: blocked by same-origin policy. Reachable in principle via `scripting.executeScript({ allFrames: true })`, but per-frame result aggregation isn't implemented yet.
 
 ### Out of scope by design
@@ -215,7 +215,7 @@ These attack vectors are unreachable by a static DOM text scanner. They require 
 
 ### Known false positives
 
-Legitimate zero-width joiners in Arabic/Indic scripts, SEO keyword stuffing with invisible characters between every letter, and any article discussing prompt injection (including this README). `.sr-only`/`aria-hidden` accessibility text is still flagged (same CSS techniques as real hidden payloads) but downgraded to LOW/informational rather than suppressed. Full suppression would be a detection-evasion shortcut.
+Legitimate zero-width joiners in Arabic/Indic scripts, SEO keyword stuffing with invisible characters between every letter, and any article discussing prompt injection (including this README). `.sr-only`/`aria-hidden` accessibility text is still flagged (same CSS techniques as real hidden payloads) but downgraded to LOW/informational rather than suppressed. Full suppression would be a detection-evasion shortcut. It is also barred from corroborating anything, since screen-reader markup is normally the site's own accessibility work. Without that exclusion an accessible chat transcript (`<span class="sr-only">Assistant:</span>`) would score HIGH.
 
 ## Roadmap
 

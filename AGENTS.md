@@ -74,6 +74,22 @@ Five files, strict separation between pure logic and DOM:
   invisible-plus math-operator smuggling, plus `worstSeverity()` for
   aggregating (`detectors.js:981`).
 
+  **Scoring layer.** `scanText` ends with
+  `scanDecodedPayloads([...]).map(promoteSeverity)`:
+  `scanDecodedPayloads` re-scans every finding's `decoded` payload
+  (depth-1, clamped to `MAX_DECODED`) with the five content scanners and
+  attaches hits as `corroboration`; `promoteSeverity` weights each
+  corroborator by _its own_ severity via `corroborationRank` (a LOW
+  `code-execution` is informational, not convicting) and escalates
+  through `NEXT_SEVERITY`. Two further pure functions are called from
+  `scan.js` rather than `scanText`, because they need the deduped
+  cross-element view: `applyContextualPromotion` (promotes on
+  `normalized: true`, on content inside non-a11y `css-hidden` text, and
+  on `inComment`/`attrName` placement) and `pageVerdict` /
+  `corroborationCount`. `NEXT_SEVERITY` is applied by both
+  `promoteSeverity` and `applyContextualPromotion`, so a type reachable
+  by both would compound — see its comment.
+
   A separate normalization layer at `detectors.js:571`/
   `detectors.js:634`/`detectors.js:364` strips invisible tag characters
   and normalizes obfuscated text (fancy Unicode → ASCII, leetspeak,
@@ -185,6 +201,24 @@ don't default new patterns to `HIGH` without that justification, and keep
 instruction-phrase-style heuristics informational (`LOW`, non-convicting) if
 they're prone to false-positiving on legitimate pages that merely discuss the
 topic.
+
+A new content-detector `type` must also be registered in
+`CONVICTING_CORROBORATION` or `SUPPORTING_CORROBORATION`, or it will never
+participate in scoring — `CONTENT_TYPES` is derived from their union, so
+registering in one place covers both the payload-corroboration and
+contextual-promotion paths. Pick the set by asking whether the pattern
+convicts alone; if it emits at more than one severity, `corroborationRank`
+already weights the tiers, so put it in `CONVICTING_CORROBORATION` and let a
+LOW instance stay informational.
+
+**Prove new promotion rules against a false positive, not just a true one.**
+Both scoring regressions caught during this work were rules that looked
+obviously correct: treating any `code-execution` hit as convicting (which
+made a base64'd code sample outscore the same code in plaintext), and
+treating any concealment finding in the same element as corroborating (which
+scored accessible chat transcripts and prompt-format documentation HIGH).
+`__tests__/e2e/corpus.spec.js`'s `MUST_STAY_QUIET` list exists for exactly
+this — add to it when you add a rule.
 
 ## Before cutting a release
 

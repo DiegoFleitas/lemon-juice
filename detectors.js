@@ -1085,6 +1085,41 @@
     return { text: out, indexMap };
   }
 
+  // --- corroboration --------------------------------------------------------
+
+  // Depth-1 only: content scanners run against a decoded payload, but the
+  // encoded-blob scanners deliberately do not, so a payload nested inside a
+  // payload is never decoded again. Findings attach to their parent as
+  // `corroboration` rather than being emitted top-level — emitting them would
+  // double-count in scan.js's bySeverity totals and inflate the toolbar badge.
+  function scanDecodedPayloads(findings) {
+    for (const f of findings) {
+      if (!f.decoded) continue;
+      const inner = [
+        ...scanControlTokens(f.decoded),
+        ...scanInstructions(f.decoded),
+        ...scanCodeExecution(f.decoded),
+        ...scanReverseShell(f.decoded),
+        ...scanContextSwitch(f.decoded),
+      ];
+      if (!inner.length) continue;
+      const seen = new Set();
+      const corroboration = [];
+      for (const c of inner) {
+        const key = contentFindingKey(c);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        corroboration.push({
+          type: c.type,
+          severity: c.severity,
+          match: (c.match ?? c.pattern ?? "").slice(0, 80),
+        });
+      }
+      if (corroboration.length) f.corroboration = corroboration;
+    }
+    return findings;
+  }
+
   // --- aggregate ------------------------------------------------------------
   function scanText(text) {
     const invisible = scanInvisible(text);
@@ -1198,7 +1233,7 @@
       }
     }
 
-    return [
+    return scanDecodedPayloads([
       ...invisible,
       ...variationSelectors,
       ...sneakyBits,
@@ -1208,7 +1243,7 @@
       ...normalizedOnly,
       ...deobfuscatedOnly,
       ...spacedOnly,
-    ];
+    ]);
   }
 
   function worstSeverity(findings) {
@@ -1236,6 +1271,7 @@
     scanMixedScript,
     scanCodeExecution,
     scanReverseShell,
+    scanDecodedPayloads,
     hasMixedScript,
     normalizeDeobfuscated,
     unicodeLetterToAscii,

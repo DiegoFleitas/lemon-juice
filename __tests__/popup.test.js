@@ -201,12 +201,20 @@ test("typeLabel: reverse-shell", () => {
 test("preview: truncates long text at display time", () => {
   const long = "x".repeat(300);
   const result = preview(long);
-  assert.equal(result.length, 121);
-  assert.ok(result.endsWith("…"));
+  assert.equal(result, "x".repeat(120) + "…");
 });
 
 test("preview: leaves short text untouched", () => {
   assert.equal(preview("short"), "short");
+});
+
+test("preview: leaves exactly-120-char text untouched", () => {
+  const exact = "x".repeat(120);
+  assert.equal(preview(exact), exact);
+});
+
+test("preview: returns empty string for non-string input", () => {
+  assert.equal(preview(undefined), "");
 });
 
 test("typeLabel: truncates a long decoded payload", () => {

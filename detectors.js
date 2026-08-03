@@ -3,6 +3,12 @@
 
   const SEVERITY = { HIGH: "high", MEDIUM: "medium", LOW: "low" };
 
+  // Decoded payloads are re-scanned for corroborating content (see
+  // scanDecodedPayloads), so they must be stored at full length — truncating
+  // here would blind the re-scan. popup.js truncates at display time instead.
+  // The cap only bounds what gets structured-cloned onto window.__PIScanResult.
+  const MAX_DECODED = 4096;
+
   // --- 1. Invisible / control code points -----------------------------------
   // Curated set. Value = [human-readable name, severity].
   // Severity reflects "how likely is this to be an attack vs. a legit script
@@ -178,12 +184,6 @@
 
   // --- 2. Encoded-payload heuristic (OWASP scenario #9) ----------------------
   // Only flag if decoded output looks like readable ASCII (avoids hashes, data-URIs, etc.).
-  // Decoded payloads are re-scanned for corroborating content (see
-  // scanDecodedPayloads), so they must be stored at full length — truncating
-  // here would blind the re-scan. popup.js truncates at display time instead.
-  // The cap only bounds what gets structured-cloned onto window.__PIScanResult.
-  const MAX_DECODED = 4096;
-
   const BASE64_RUN = /[A-Za-z0-9+/]{24,}={0,2}/g;
 
   // JWTs (header.payload.signature, each segment base64) decode cleanly and are

@@ -1523,3 +1523,10 @@ test("scanEncoded: keeps decoded payload at full length for re-scanning", () => 
   assert.ok(finding.decoded.length > 120, "decoded should not be truncated at 120");
   assert.equal(finding.decoded, long);
 });
+
+test("scanEncoded: caps a very long decoded payload at MAX_DECODED", () => {
+  const long = "abcdefgh".repeat(1000); // 8000 chars
+  const blob = Buffer.from(long).toString("base64");
+  const [finding] = PIScanner.scanEncoded(`prefix ${blob} suffix`);
+  assert.equal(finding.decoded.length, 4096);
+});

@@ -111,6 +111,7 @@ const FOLD_THRESHOLD = 5;
 // Findings carry decoded payloads at full length so detectors.js can re-scan
 // them for corroborating content; the popup is where they get shortened.
 function preview(s) {
+  if (typeof s !== "string") return "";
   return s.length > 120 ? s.slice(0, 120) + "…" : s;
 }
 

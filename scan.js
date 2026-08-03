@@ -164,7 +164,12 @@
             ? item.hex
             : item.type === "css-hidden"
               ? item.reasons.join(",")
-              : (item.decoded ?? "");
+              : // Bounded at 120 to preserve pre-existing fold behaviour:
+                // `decoded` used to be truncated at capture, and is now stored
+                // full-length so detectors.js can re-scan it for corroboration.
+                // Unbounded here, two long payloads agreeing in their first 120
+                // chars would stop sharing a groupKey and stop folding.
+                (item.decoded ?? "").slice(0, 120);
       return {
         full: `${signal}:${fingerprint}:${item.context}`,
         group: `${signal}:${fingerprint}`,
@@ -185,7 +190,12 @@
         deduped.push(item);
       }
     }
-    items.splice(0, items.length, ...deduped);
+    // Contextual promotion runs on the deduped array (targetIds are merged by
+    // then) and BEFORE the sort/cap below. Order is load-bearing: the sort
+    // assigns item.index from position and MAX_ITEMS truncates, so promoting
+    // afterwards would rank and cap on pre-promotion severities — a promoted
+    // HIGH could be truncated away while an unpromoted LOW survived.
+    items.splice(0, items.length, ...S.applyContextualPromotion(deduped));
 
     const SEV_ORDER = { high: 0, medium: 1, low: 2 };
     items.sort((a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity]);
@@ -220,6 +230,8 @@
       url: location.href,
       count: capped.length,
       worst: S.worstSeverity(capped),
+      verdict: S.pageVerdict(capped),
+      corroborationCount: S.corroborationCount(capped),
       bySeverity: {
         high: capped.filter((i) => i.severity === "high").length,
         medium: capped.filter((i) => i.severity === "medium").length,

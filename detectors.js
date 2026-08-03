@@ -1266,6 +1266,42 @@
     });
   }
 
+  // Named tiers rather than a 0-100 score: a page's finding space is unbounded,
+  // so there is no honest denominator, and there is no external reputation
+  // signal (a store rating, an install count) to moderate a composite with.
+  const VERDICT = {
+    CLEAN: "clean",
+    NOISE: "noise",
+    SUSPICIOUS: "suspicious",
+    LIKELY_INJECTION: "likely-injection",
+  };
+
+  function isCorroborated(item) {
+    return !!(item.corroboration?.length || item.contextual?.length);
+  }
+
+  function corroborationCount(items) {
+    return items.reduce(
+      (n, i) => n + (i.corroboration?.length || 0) + (i.contextual?.length || 0),
+      0
+    );
+  }
+
+  function pageVerdict(items) {
+    if (!items.length) return VERDICT.CLEAN;
+    const corroborated = items.filter(isCorroborated);
+    if (corroborated.some((i) => i.severity === SEVERITY.HIGH)) {
+      return VERDICT.LIKELY_INJECTION;
+    }
+    if (corroborated.length >= 2) return VERDICT.LIKELY_INJECTION;
+    if (corroborated.length) return VERDICT.SUSPICIOUS;
+    // An uncorroborated MEDIUM stays noise on purpose: a lone zero-width space
+    // is the single largest false-positive source in the wild, and today it
+    // lights the badge amber for no reason.
+    if (items.some((i) => i.severity === SEVERITY.HIGH)) return VERDICT.SUSPICIOUS;
+    return VERDICT.NOISE;
+  }
+
   // --- aggregate ------------------------------------------------------------
   function scanText(text) {
     const invisible = scanInvisible(text);
@@ -1420,6 +1456,9 @@
     scanDecodedPayloads,
     promoteSeverity,
     applyContextualPromotion,
+    VERDICT,
+    pageVerdict,
+    corroborationCount,
     hasMixedScript,
     normalizeDeobfuscated,
     unicodeLetterToAscii,

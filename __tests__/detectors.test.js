@@ -1814,3 +1814,65 @@ test("applyContextualPromotion: findings on different elements do not corroborat
   assert.equal(out[0].severity, PIScanner.SEVERITY.LOW);
   assert.equal(out[1].severity, PIScanner.SEVERITY.LOW);
 });
+
+test("pageVerdict: no findings is clean", () => {
+  assert.equal(PIScanner.pageVerdict([]), PIScanner.VERDICT.CLEAN);
+});
+
+test("pageVerdict: a lone uncorroborated zero-width space is noise, not suspicious", () => {
+  // The false-positive-fatigue case: MEDIUM today, amber badge, no evidence.
+  const items = [{ type: "invisible", severity: PIScanner.SEVERITY.MEDIUM }];
+  assert.equal(PIScanner.pageVerdict(items), PIScanner.VERDICT.NOISE);
+});
+
+test("pageVerdict: an uncorroborated HIGH is suspicious", () => {
+  const items = [{ type: "invisible", severity: PIScanner.SEVERITY.HIGH }];
+  assert.equal(PIScanner.pageVerdict(items), PIScanner.VERDICT.SUSPICIOUS);
+});
+
+test("pageVerdict: a corroborated HIGH is a likely injection attempt", () => {
+  const items = [
+    {
+      type: "unicode-tag",
+      severity: PIScanner.SEVERITY.HIGH,
+      corroboration: [{ type: "control-token" }],
+    },
+  ];
+  assert.equal(PIScanner.pageVerdict(items), PIScanner.VERDICT.LIKELY_INJECTION);
+});
+
+test("pageVerdict: a single corroborated non-HIGH finding is suspicious", () => {
+  const items = [
+    {
+      type: "instruction-phrase",
+      severity: PIScanner.SEVERITY.MEDIUM,
+      contextual: ["inside an HTML comment"],
+    },
+  ];
+  assert.equal(PIScanner.pageVerdict(items), PIScanner.VERDICT.SUSPICIOUS);
+});
+
+test("pageVerdict: two independently corroborated findings are a likely injection attempt", () => {
+  const items = [
+    {
+      type: "invisible",
+      severity: PIScanner.SEVERITY.MEDIUM,
+      contextual: ["co-located with injected content"],
+    },
+    {
+      type: "instruction-phrase",
+      severity: PIScanner.SEVERITY.MEDIUM,
+      contextual: ["inside an HTML comment"],
+    },
+  ];
+  assert.equal(PIScanner.pageVerdict(items), PIScanner.VERDICT.LIKELY_INJECTION);
+});
+
+test("corroborationCount: totals both corroboration sources", () => {
+  const items = [
+    { corroboration: [{ type: "control-token" }, { type: "instruction-phrase" }] },
+    { contextual: ["inside an HTML comment"] },
+    {},
+  ];
+  assert.equal(PIScanner.corroborationCount(items), 3);
+});

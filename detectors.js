@@ -1087,35 +1087,36 @@
 
   // --- corroboration --------------------------------------------------------
 
-  // Depth-1 only: content scanners run against a decoded payload, but the
-  // encoded-blob scanners deliberately do not, so a payload nested inside a
-  // payload is never decoded again. Findings attach to their parent as
-  // `corroboration` rather than being emitted top-level — emitting them would
-  // double-count in scan.js's bySeverity totals and inflate the toolbar badge.
+  // Depth-1 only, structurally: the five scanners below never themselves
+  // produce a `.decoded` field, and the projection into `corroboration` keeps
+  // only type/severity/match — so nothing carrying `.decoded` can ever flow
+  // back in here. A payload nested inside a payload is therefore never
+  // decoded again. Findings attach to their parent as `corroboration` rather
+  // than being emitted top-level — emitting them would double-count in
+  // scan.js's bySeverity totals and inflate the toolbar badge. (A future
+  // scanner added to the inner list must preserve both properties to keep
+  // depth-1 true.)
   function scanDecodedPayloads(findings) {
     for (const f of findings) {
       if (!f.decoded) continue;
+      // scanInvisible stores its reassembled Tags payload uncapped
+      // (detectors.js:180), and every regex below backtracks superlinearly on
+      // adversarial input. Clamp here so the bound holds no matter which
+      // producer set `decoded`.
+      const payload = f.decoded.slice(0, MAX_DECODED);
       const inner = [
-        ...scanControlTokens(f.decoded),
-        ...scanInstructions(f.decoded),
-        ...scanCodeExecution(f.decoded),
-        ...scanReverseShell(f.decoded),
-        ...scanContextSwitch(f.decoded),
+        ...scanControlTokens(payload),
+        ...scanInstructions(payload),
+        ...scanCodeExecution(payload),
+        ...scanReverseShell(payload),
+        ...scanContextSwitch(payload),
       ];
       if (!inner.length) continue;
-      const seen = new Set();
-      const corroboration = [];
-      for (const c of inner) {
-        const key = contentFindingKey(c);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        corroboration.push({
-          type: c.type,
-          severity: c.severity,
-          match: (c.match ?? c.pattern ?? "").slice(0, 80),
-        });
-      }
-      if (corroboration.length) f.corroboration = corroboration;
+      f.corroboration = inner.map((c) => ({
+        type: c.type,
+        severity: c.severity,
+        match: c.match,
+      }));
     }
     return findings;
   }

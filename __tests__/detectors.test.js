@@ -1576,3 +1576,32 @@ test("scanText: a clean decoded payload gets no corroboration", () => {
   const parent = findings.find((f) => f.type === "encoded-base64");
   assert.equal(parent.corroboration, undefined);
 });
+
+test("scanDecodedPayloads: clamps an oversized decoded payload before re-scanning", () => {
+  // scanInvisible's reassembled Tags payload is never truncated (unlike the
+  // other seven `decoded` producers, which cap at MAX_DECODED = 4096 at the
+  // source). Build one long enough that a corroborating "decode(" suffix
+  // lands well past that boundary: if scanDecodedPayloads scanned the full,
+  // uncapped payload, scanCodeExecution's exec(...decode() pattern would see
+  // the suffix and report a MEDIUM corroborated match; if it correctly clamps
+  // to MAX_DECODED first, the suffix is out of range and only the bare
+  // `exec(` pattern (LOW) is visible. This is a structural assertion rather
+  // than a wall-clock one, so it can't flake on a slow CI runner — but it's
+  // the same clamp that keeps the code-execution/reverse-shell regexes from
+  // backtracking superlinearly over an attacker-controlled, invisible,
+  // arbitrarily long smuggled payload.
+  const filler = "exec(".repeat(1000); // 5000 chars, past MAX_DECODED
+  const ascii = filler + "decode(";
+  const findings = PIScanner.scanText(tagsPayload(ascii));
+  const parent = findings.find((f) => f.type === "unicode-tag" && f.decoded);
+  assert.ok(parent, "expected a unicode-tag finding with the decoded payload");
+  assert.ok(
+    parent.decoded.length > 4096,
+    "the uncapped decoded field should exceed MAX_DECODED"
+  );
+  assert.ok(parent.corroboration?.length, "expected a bare exec( corroboration");
+  assert.ok(
+    parent.corroboration.every((c) => c.severity !== PIScanner.SEVERITY.MEDIUM),
+    "the corroborated exec(...decode() pattern must not fire — its suffix is past the clamp"
+  );
+});

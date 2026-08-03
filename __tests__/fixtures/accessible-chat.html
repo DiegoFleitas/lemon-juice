@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Accessible chat transcript</title>
+    <style>
+      .element-invisible {
+        position: absolute;
+        clip: rect(0 0 0 0);
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      Standard accessible message list: the role label is announced to screen
+      readers and hidden from sighted users, who get the avatar instead. This
+      is the site's own accessibility work, not an injection. Before the
+      concealment rule was tightened, the hidden role label plus the
+      instruction-phrase detector scored this page HIGH.
+    -->
+    <ul>
+      <li class="message">
+        <span class="element-invisible">Assistant:</span>
+        <img class="avatar" src="bot.png" alt="" />
+        <p>Sure — here are the steps you asked for.</p>
+      </li>
+      <li class="message">
+        <span class="element-invisible">User:</span>
+        <img class="avatar" src="me.png" alt="" />
+        <p>Thanks, that worked.</p>
+      </li>
+    </ul>
+  </body>
+</html>

@@ -26,16 +26,17 @@ The repo already believes in corroboration _within_ a detector — `scanContextS
 
 ## File Structure
 
-| File                                           | Responsibility for this change                                                                   |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `detectors.js`                                 | All four layers as pure exported functions                                                       |
-| `scan.js`                                      | Calls `applyContextualPromotion` after dedup; adds `verdict`/`corroborationCount` to the summary |
-| `popup.js`                                     | `preview()` truncation, verdict headline, corroboration sub-lines, verdict-driven badge          |
-| `popup.html`                                   | CSS for the verdict classes and the corroboration sub-line                                       |
-| `__tests__/detectors.test.js`                  | Layers 1–4 unit tests                                                                            |
-| `__tests__/popup.test.js`                      | `verdictLine`, `preview`                                                                         |
-| `__tests__/fixtures/corroborated-payload.html` | New e2e fixture                                                                                  |
-| `README.md`                                    | Severity section at line 76 documents the current model                                          |
+| File                          | Responsibility for this change                                                                   |
+| ----------------------------- | ------------------------------------------------------------------------------------------------ |
+| `detectors.js`                | All four layers as pure exported functions                                                       |
+| `scan.js`                     | Calls `applyContextualPromotion` after dedup; adds `verdict`/`corroborationCount` to the summary |
+| `popup.js`                    | `preview()` truncation, verdict headline, corroboration sub-lines, verdict-driven badge          |
+| `popup.html`                  | CSS for the verdict classes and the corroboration sub-line                                       |
+| `__tests__/detectors.test.js` | Layers 1–4 unit tests                                                                            |
+| `__tests__/popup.test.js`     | `verdictLine`, `preview`                                                                         |
+| `scan-helpers.js`             | `A11Y_HIDDEN_CLASSES` expansion (makes the `likelyA11y` dampener fire on real sites)             |
+| `__tests__/fixtures/*.html`   | Five new e2e fixtures — one true positive, four false-positive gates                             |
+| `README.md`                   | Severity section at line 76 documents the current model                                          |
 
 ---
 
@@ -519,27 +520,106 @@ git commit -m "feat(detectors): promote severity from payload corroboration"
 
 Cross-finding corroboration. Operates on the **deduped** item array from `scan.js`, where `targetIds`, `inComment`, and `attrName` exist — but stays in `detectors.js` as a pure function so it is unit-testable without a DOM, matching the architecture split in `AGENTS.md`.
 
+**Co-location counts only when the concealment was applied to the content itself.** "An invisible character appears somewhere in the same element" is not evidence: `targetId` is `node.parentElement`, so two findings 1800 characters apart in one `<pre>` would qualify. Three signals, each promoting one step:
+
+- **A — self-concealment.** A content finding with `normalized: true`: it only became readable after stripping invisible characters or undoing leetspeak/homoglyphs, which is direct proof the hiding was applied to that phrase. **Fires on its own** — no co-located concealment finding is required, because a fancy-Unicode or double-struck disguise lives in _visible_ characters and emits no concealment finding at all (`compound-obfuscation.html`, `fancy-unicode-role-labels.html`).
+- **B — hidden placement.** Content sharing an element with a `css-hidden` finding that is **not** `likelyA11y`. Both promote.
+- **C — concealed placement.** `inComment` / `attrName`.
+
+`CONCEALMENT_TYPES` does not exist: nothing under this rule needs a generic concealment set. `CONTENT_TYPES` is _derived_ from `CONVICTING_CORROBORATION ∪ SUPPORTING_CORROBORATION` so a new content detector registered in one place cannot go missing from the other.
+
 **Files:**
 
-- Modify: `detectors.js` (new function; export block)
-- Test: `__tests__/detectors.test.js`
+- Modify: `detectors.js` (new functions; export block)
+- Modify: `scan-helpers.js` — expand `A11Y_HIDDEN_CLASSES` with `visuallyhidden`, `element-invisible` (Drupal), `a11y-hidden`, `assistive-text`, `hidden-visually`. This list is what makes the `likelyA11y` dampener fire on real sites; without it Signal B scores every accessible chat transcript HIGH.
+- Test: `__tests__/detectors.test.js`, `__tests__/scan-helpers.test.js`
 
 - [ ] **Step 1: Write the failing tests**
 
 ```js
-test("applyContextualPromotion: concealment co-located with content promotes both", () => {
+test("applyContextualPromotion: a phrase revealed only after deobfuscation is promoted", () => {
   const items = [
-    { type: "invisible", severity: PIScanner.SEVERITY.MEDIUM, targetIds: ["pi-1"] },
     {
       type: "instruction-phrase",
       severity: PIScanner.SEVERITY.LOW,
       targetIds: ["pi-1"],
+      normalized: true,
     },
   ];
-  const [mech, content] = PIScanner.applyContextualPromotion(items);
-  assert.equal(mech.severity, PIScanner.SEVERITY.HIGH);
+  const [item] = PIScanner.applyContextualPromotion(items);
+  assert.equal(item.severity, PIScanner.SEVERITY.MEDIUM);
+  assert.ok(item.contextual.some((r) => /after removing concealment/.test(r)));
+});
+
+test("applyContextualPromotion: a stray invisible char near visible content does NOT promote", () => {
+  // The docs-code-block false positive: a page explaining a chat prompt format
+  // plus one CMS soft-wrap character must stay quiet. targetId is the parent
+  // element, so without this rule two findings anywhere in one <pre> convict.
+  const items = [
+    { type: "invisible", severity: PIScanner.SEVERITY.MEDIUM, targetIds: ["pi-1"] },
+    { type: "instruction-phrase", severity: PIScanner.SEVERITY.LOW, targetIds: ["pi-1"] },
+  ];
+  const out = PIScanner.applyContextualPromotion(items);
+  assert.equal(out[0].severity, PIScanner.SEVERITY.MEDIUM);
+  assert.equal(out[1].severity, PIScanner.SEVERITY.LOW);
+  assert.equal(out[1].contextual, undefined);
+});
+
+test("applyContextualPromotion: content in non-a11y hidden text promotes both", () => {
+  const items = [
+    { type: "css-hidden", severity: PIScanner.SEVERITY.MEDIUM, targetIds: ["pi-1"] },
+    { type: "instruction-phrase", severity: PIScanner.SEVERITY.LOW, targetIds: ["pi-1"] },
+  ];
+  const [hidden, content] = PIScanner.applyContextualPromotion(items);
+  assert.equal(hidden.severity, PIScanner.SEVERITY.HIGH);
   assert.equal(content.severity, PIScanner.SEVERITY.MEDIUM);
-  assert.ok(content.contextual.some((r) => /co-located/.test(r)));
+  assert.ok(content.contextual.some((r) => /visually hidden text/.test(r)));
+});
+
+test("applyContextualPromotion: a11y-hidden text does not corroborate", () => {
+  // The accessible-chat-UI false positive:
+  // <span class="sr-only">Assistant:</span> is the site's own a11y markup.
+  const items = [
+    {
+      type: "css-hidden",
+      severity: PIScanner.SEVERITY.LOW,
+      targetIds: ["pi-1"],
+      likelyA11y: true,
+    },
+    { type: "instruction-phrase", severity: PIScanner.SEVERITY.LOW, targetIds: ["pi-1"] },
+  ];
+  const out = PIScanner.applyContextualPromotion(items);
+  assert.equal(out[0].severity, PIScanner.SEVERITY.LOW);
+  assert.equal(out[1].severity, PIScanner.SEVERITY.LOW);
+});
+
+test("applyContextualPromotion: an attribute placement is promoted and named", () => {
+  const items = [
+    {
+      type: "instruction-phrase",
+      severity: PIScanner.SEVERITY.LOW,
+      targetIds: ["pi-1"],
+      attrName: "aria-label",
+    },
+  ];
+  const [item] = PIScanner.applyContextualPromotion(items);
+  assert.equal(item.severity, PIScanner.SEVERITY.MEDIUM);
+  assert.ok(item.contextual.some((r) => /aria-label attribute/.test(r)));
+});
+
+test("applyContextualPromotion: a HIGH finding still records why, without promotedFrom", () => {
+  const items = [
+    {
+      type: "control-token",
+      severity: PIScanner.SEVERITY.HIGH,
+      targetIds: ["pi-1"],
+      inComment: true,
+    },
+  ];
+  const [item] = PIScanner.applyContextualPromotion(items);
+  assert.equal(item.severity, PIScanner.SEVERITY.HIGH);
+  assert.ok(item.contextual.length);
+  assert.equal(item.promotedFrom, undefined);
 });
 
 test("applyContextualPromotion: instruction phrase in a comment is promoted", () => {
@@ -579,7 +659,7 @@ test("applyContextualPromotion: two concealment findings alone do not corroborat
 
 test("applyContextualPromotion: findings on different elements do not corroborate", () => {
   const items = [
-    { type: "invisible", severity: PIScanner.SEVERITY.LOW, targetIds: ["pi-1"] },
+    { type: "css-hidden", severity: PIScanner.SEVERITY.LOW, targetIds: ["pi-1"] },
     { type: "instruction-phrase", severity: PIScanner.SEVERITY.LOW, targetIds: ["pi-2"] },
   ];
   const out = PIScanner.applyContextualPromotion(items);
@@ -598,20 +678,10 @@ Expected: FAIL — `PIScanner.applyContextualPromotion is not a function`.
 Insert directly below `promoteSeverity`:
 
 ```js
-const CONCEALMENT_TYPES = new Set([
-  "invisible",
-  "unicode-tag",
-  "css-hidden",
-  "variation-selector-smuggling",
-  "sneaky-bits-smuggling",
-]);
-const CONTENT_TYPES = new Set([
-  "instruction-phrase",
-  "control-token",
-  "context-switch",
-  "code-execution",
-  "reverse-shell",
-]);
+// Derived, not a third parallel list: these are exactly the types that can
+// corroborate a payload, so a new content detector registered in one place
+// cannot silently go missing from the other.
+const CONTENT_TYPES = new Set([...CONVICTING_CORROBORATION, ...SUPPORTING_CORROBORATION]);
 
 // Text a human never sees but an LLM ingesting the DOM does. Deliberately
 // does NOT include plain body text: a page *about* prompt injection carries
@@ -632,7 +702,26 @@ function itemTargets(item) {
 // Cross-finding corroboration, the between-detector analogue of
 // scanDecodedPayloads' within-finding check. Takes scan.js's deduped item
 // array (pure — no DOM), returns a new array with promotions applied.
+//
+// Co-location counts only when the concealment was applied to the CONTENT
+// itself. "An invisible character appears somewhere in the same element" is
+// not evidence — targetId is node.parentElement, so two findings 1800 chars
+// apart in one <pre> would qualify. A docs code block explaining a chat
+// prompt format, plus one stray U+200B soft-wrap from a CMS, would convict.
 function applyContextualPromotion(items) {
+  const reasons = new Map(); // item -> Set<string>
+  const note = (item, reason) => {
+    const s = reasons.get(item) || new Set();
+    s.add(reason);
+    reasons.set(item, s);
+  };
+
+  // Signal B: content sitting inside genuinely hidden text. likelyA11y is
+  // excluded from *corroborating* (it can still be promoted by something
+  // else): sr-only markup is normally the site's own accessibility work, and
+  // an attacker who injects text rarely also authors the host stylesheet.
+  // Without this, <span class="sr-only">Assistant:</span> — the standard
+  // accessible chat transcript — scores HIGH.
   const byTarget = new Map();
   for (const item of items) {
     for (const id of itemTargets(item)) {
@@ -641,30 +730,27 @@ function applyContextualPromotion(items) {
       byTarget.set(id, arr);
     }
   }
-
-  const reasons = new Map(); // item -> Set<string>
-  const note = (item, reason) => {
-    const s = reasons.get(item) || new Set();
-    s.add(reason);
-    reasons.set(item, s);
-  };
-
-  // A hiding mechanism and injected content on the same element corroborate
-  // each other. Two mechanisms, or two content findings, do not.
   for (const group of byTarget.values()) {
-    const concealment = group.filter((i) => CONCEALMENT_TYPES.has(i.type));
+    const hidden = group.filter((i) => i.type === "css-hidden" && !i.likelyA11y);
     const content = group.filter((i) => CONTENT_TYPES.has(i.type));
-    if (!concealment.length || !content.length) continue;
-    for (const i of concealment) note(i, "co-located with injected content");
-    for (const i of content) note(i, "co-located with a concealment mechanism");
+    if (!hidden.length || !content.length) continue;
+    for (const i of hidden) note(i, "co-located with injected content");
+    for (const i of content) note(i, "inside visually hidden text");
   }
 
   for (const item of items) {
     if (!CONTENT_TYPES.has(item.type)) continue;
+    // Signal A: the phrase itself was obfuscated — it only became readable
+    // after stripping invisible characters or undoing leetspeak/homoglyphs.
+    // Direct proof the hiding was done to this very phrase.
+    if (item.normalized) note(item, "revealed only after removing concealment");
+    // Signal C
     const where = concealedPlacement(item);
     if (where) note(item, where);
   }
 
+  // Reasons accumulate but severity moves at most ONE step regardless of how
+  // many fire — contextual.length is evidence count, not severity weight.
   return items.map((item) => {
     const why = reasons.get(item);
     if (!why) return item;
@@ -680,6 +766,16 @@ function applyContextualPromotion(items) {
   });
 }
 ```
+
+**Settled design question — Signal A promotes the content only, not the mechanism.**
+When a `normalized` phrase sits on an element that also has an invisible-char
+finding, only the phrase is promoted; the `invisible` finding stays where the
+detector put it. The argument for also promoting the mechanism is real — a
+zero-width space that split "ignore previous instructions" is the weapon, not
+typography. It is rejected because promoting every invisible finding on the
+element re-opens exactly the co-residency risk this rule closed: an unrelated
+stray invisible elsewhere in the same `<pre>` would ride along to HIGH. If this
+is revisited, it needs its own false-positive fixture first.
 
 - [ ] **Step 4: Export it**
 
@@ -938,7 +1034,7 @@ test("verdictLine: noise does not claim corroboration", () => {
     corroborationCount: 0,
     bySeverity: { high: 0, medium: 1, low: 0 },
   });
-  assert.match(line, /Hidden characters/);
+  assert.match(line, /nothing corroborating/);
   // Not /corroborating/ — the noise LABEL itself contains that word. What must
   // be absent is the ", N corroborating signals" suffix.
   assert.doesNotMatch(line, /corroborating signal/);
@@ -1104,7 +1200,7 @@ git commit -m "feat(popup): lead with the page verdict and explain promotions"
 
 **Files:**
 
-- Create: `__tests__/fixtures/corroborated-payload.html`, `__tests__/fixtures/encoded-showcase.html`
+- Create: `__tests__/fixtures/corroborated-payload.html`, `__tests__/fixtures/encoded-showcase.html`, `__tests__/fixtures/lone-zero-width.html`, `__tests__/fixtures/discussion-with-stray-invisible.html`
 - Modify: `__tests__/e2e/corpus.spec.js` (new tests + the one expectation that legitimately moves, named in Step 4)
 
 **Which existing specs move, traced explicitly** — do not treat this as "review each failure as it comes":
@@ -1164,6 +1260,11 @@ const MUST_STAY_QUIET = [
   "baseline.html",
   "plaintext-gpl.html",
   "jwt-decoy.html",
+  // Regression fixtures: both scored HIGH under same-element co-location
+  // before it required proven concealment of the content.
+  "accessible-chat.html",
+  "docs-prompt-format.html",
+  "discussion-with-stray-invisible.html",
 ];
 
 for (const fixture of MUST_STAY_QUIET) {
@@ -1245,11 +1346,47 @@ test("a security writeup showing an encoded payload does promote (accepted FP)",
   page,
 }) => {
   const result = await injectAndScan(page, path.join(FIXTURES, "encoded-showcase.html"));
-  expect(result.verdict).toBe("suspicious");
+  // Decoded payload carries <|im_start|>/<|im_end|>, a convicting
+  // corroboration, so the corroborated HIGH lands on likely-injection — not
+  // merely suspicious. "Showcase vs. carry" is not decidable; accept the flag.
+  expect(result.verdict).toBe("likely-injection");
   const blob = result.items.find((i) => i.type === "encoded-base64");
   expect(blob.severity).toBe("high");
 });
 ```
+
+- [ ] **Step 3c: Gate the co-location tightening**
+
+The Task 4 co-location rule only promotes when the _content_ is provably
+concealed (`normalized`, or inside a non-a11y css-hidden element). The case it
+must reject is the over-trigger this gate exists for: a page that _discusses_
+prompt injection in visible prose and happens to carry a stray invisible
+character on the same element. Create
+`__tests__/fixtures/discussion-with-stray-invisible.html`:
+
+```html
+<!doctype html>
+<html data-fixture-name="discussion-with-stray-invisible">
+  <head>
+    <meta charset="utf-8" />
+    <title>What is prompt injection</title>
+  </head>
+  <body>
+    <p id="article">
+      Prompt injection is a real risk. Many examples say to ignore all previous
+      instructions, like this demonstration.&#x200B;
+    </p>
+  </body>
+</html>
+```
+
+The trailing zero-width space is inert: it sits after the sentence and never
+splits a word, so the instruction phrase reads in the raw text and is NOT
+`normalized`. Without the Task 4 tightening this element co-locates the
+invisible (MEDIUM) with the phrase (LOW) and promotes both →
+`suspicious`. With it, neither promotes and the page lands in `noise` —
+which is exactly why this fixture is in `MUST_STAY_QUIET` above. If it ever
+fails, the co-location predicate regressed toward blind co-residency.
 
 - [ ] **Step 4: Update the one expectation that legitimately moves**
 
@@ -1259,26 +1396,36 @@ test("a security writeup showing an encoded payload does promote (accepted FP)",
 dialogue inside an HTML comment, so `scan.js` sets `inComment: true` and
 `applyContextualPromotion` moves the context-switch finding LOW→MEDIUM.
 
-That is exactly the thesis of this change, so the expectation moves. Relax the
-vector loop's severity assertion to accept the promoted value for
-comment-hosted fixtures, keeping the LOW assertion for the rest. Do not blanket
-the assertion away — and report the exact diff you made.
+**Three** positive fixtures move, not one, and only this one moves via
+placement. The other two move via Signal A (`normalized`), because their
+disguise lives in visible characters and emits no concealment finding:
 
-````
+- `contextSwitch/positive/refusal-flip-comment.html` — dialogue inside an HTML
+  comment (Signal C)
+- `contextSwitch/positive/fancy-unicode-role-labels.html` — fullwidth
+  `Ｕｓｅｒ：` / `ＡＩ：`, readable only after NFKC (Signal A)
+- `compoundInstructions/positive/compound-obfuscation.html` — double-struck
+  letters spelling an instruction phrase (Signal A)
 
-- [ ] **Step 4: Run the e2e suite**
+Replace the loop's flat `severity === "low"` assertion with a **stricter** one
+rather than a looser one: allow a promotion, but require it to be explained —
+any climb above LOW must carry a non-empty `contextual`/`corroboration` and a
+`promotedFrom` of `"low"`. An unexplained climb is the exact shape a scoring
+regression takes, and must still fail.
+
+- [ ] **Step 5: Run the e2e suite**
 
 Run: `pnpm test:e2e`
 Expected: PASS.
 
 If a pre-existing expectation fails because a severity moved, **review each one individually** — a moved expectation is the exact shape a scoring regression takes. Update it only when you can name the corroboration that justifies the move; otherwise the promotion rule is at fault.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add __tests__/fixtures/corroborated-payload.html __tests__/e2e/corpus.spec.js
+git add __tests__/fixtures/ __tests__/e2e/corpus.spec.js
 git commit -m "test(e2e): gate corroboration scoring against false positives"
-````
+```
 
 ---
 
@@ -1294,7 +1441,7 @@ git commit -m "test(e2e): gate corroboration scoring against false positives"
 
 - [ ] **Step 2: Update AGENTS.md**
 
-In the `detectors.js` bullet, note that `scanText` now ends with `scanDecodedPayloads(...).map(promoteSeverity)`, and that `applyContextualPromotion`/`pageVerdict` are pure functions called from `scan.js` after dedup. In "Adding a new detector", add: a new `type` must be classified into `CONCEALMENT_TYPES` or `CONTENT_TYPES` (or deliberately neither) or it will never participate in corroboration.
+In the `detectors.js` bullet, note that `scanText` now ends with `scanDecodedPayloads(...).map(promoteSeverity)`, and that `applyContextualPromotion`/`pageVerdict` are pure functions called from `scan.js` after dedup. In "Adding a new detector", add: a new content `type` must be registered in `CONVICTING_CORROBORATION` or `SUPPORTING_CORROBORATION` — `CONTENT_TYPES` is derived from their union, so one registration covers both the payload-corroboration and contextual-promotion paths. There is no `CONCEALMENT_TYPES`.
 
 - [ ] **Step 3: Full verification**
 

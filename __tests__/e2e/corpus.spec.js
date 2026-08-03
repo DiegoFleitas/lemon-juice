@@ -108,10 +108,11 @@ const MUST_STAY_QUIET = [
   "baseline.html",
   "plaintext-gpl.html",
   "jwt-decoy.html",
-  // Regression fixtures: both of these scored HIGH under same-element
+  // Regression fixtures: all three scored above noise under same-element
   // co-location before it required proven concealment of the content.
   "accessible-chat.html",
   "docs-prompt-format.html",
+  "discussion-with-stray-invisible.html",
 ];
 
 for (const fixture of MUST_STAY_QUIET) {

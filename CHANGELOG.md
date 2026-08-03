@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.5.0 - 2026-08-03
+
+- docs: collapse the corroboration-scoring plan to a record (a53dfd5)
+- style(popup): drop em dashes from the verdict line (b6eb2de)
+- docs: reconcile scoring plan with shipped implementation (c7461c3)
+- docs: describe corroboration scoring and verdict tiers (91ddbdb)
+- test(e2e): gate corroboration scoring against false positives (945a4b5)
+- feat(popup): lead with the page verdict and explain promotions (1892fff)
+- feat(scan): apply contextual promotion and compute page verdict (613f1a0)
+- feat(detectors): add page-level verdict tiers (6c418d6)
+- fix(detectors): require proven concealment for co-location (4e1ee6f)
+- feat(detectors): promote severity from co-location and placement (2534b90)
+- docs: rank corroboration by severity in plan (100811b)
+- fix(detectors): weight corroboration by its own severity (0e23f9f)
+- feat(detectors): promote severity from payload corroboration (a50b21e)
+- fix(detectors): clamp decoded payload before re-scanning (46de7dd)
+- feat(detectors): re-scan decoded payloads for corroborating content (7bfdc70)
+- docs: correct plan fixture, test, and FP-gate errors (8bda895)
+- fix(popup): guard preview against non-string input (ceff723)
+- style: format corroboration-scoring plan (414a42b)
+- refactor(detectors): store decoded payloads at full length (3f0f21c)
+- docs: add corroboration-based scoring plan (9b0cc06)
+- docs: add security review notes for scanner false positives (9c637fd)
+
 ## v0.4.0 - 2026-07-26
 
 - fix(detectors): dedup overlapping instruction-phrase matches (063e9dc)

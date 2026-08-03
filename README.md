@@ -26,7 +26,7 @@ A Firefox extension that holds a web page up to the flame. It reveals hidden tex
 > [!IMPORTANT]
 > This is a detection aid, not a shield. It does not block or "clean" anything. A clean scan means "nothing obvious found," not "this page is safe." See [Limitations](#limitations).
 
-![Lemon Juice scanning a page: highlighted hidden text on the left, results panel on the right](assets/lemon-juice.jpg)
+![Lemon Juice scanning a page: highlighted hidden text on the left, results panel on the right](assets/lemon-juice.png)
 
 ## Why
 

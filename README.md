@@ -140,7 +140,11 @@ For test pages that exercise detection:
 
 - **Nothing leaves your browser.** No network calls, telemetry, or analytics.
 - **No host permissions.** `activeTab` grants page access only when you click the icon.
+- **No dynamic code execution.** No `eval`, `new Function`, or remote code. The MV3 manifest ships `script-src 'self'`.
 - All decoding and scanning happens locally in the content-script sandbox.
+
+> [!NOTE]
+> Static scanners sometimes flag `detectors.js` for "dynamic code execution": it carries attack-payload strings like `eval(` and `bash -i >& /dev/tcp/` as inert regex pattern data. [`docs/security-review-notes.md`](docs/security-review-notes.md) has the rebuttal, with commands to verify it yourself.
 
 ## Limitations
 

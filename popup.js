@@ -23,6 +23,7 @@ async function scan() {
     els.status.textContent = "Can't scan this page.";
     return;
   }
+  resetStatus(els.status);
   els.status.textContent = "Scanning…";
   els.list.replaceChildren();
 
@@ -108,6 +109,44 @@ async function scrollTo(targetId) {
 // shadow-DOM/iframe test fixtures, fully distinguishable).
 const FOLD_THRESHOLD = 5;
 
+// Short forms for corroboration sub-lines. Deliberately not typeLabel() — a
+// corroboration entry carries only {type, severity, match}, so the full
+// labels' decoded/reasons/name interpolations would have nothing to read.
+const CORROBORATION_LABEL = {
+  "control-token": "an LLM chat-template control token",
+  "instruction-phrase": "an instruction-like phrase",
+  "context-switch": "a fabricated conversation turn",
+  "code-execution": "a code-execution pattern",
+  "reverse-shell": "a reverse-shell command",
+};
+
+const VERDICT_LABEL = {
+  // Deliberately not "Hidden characters" — a css-hidden-only or
+  // instruction-phrase-only page reaches this tier with nothing invisible.
+  noise: "Findings present — nothing corroborating",
+  suspicious: "Suspicious",
+  "likely-injection": "Likely injection attempt",
+};
+
+// The verdict class is sticky state on a long-lived element, so every path
+// that does not set it must clear it — otherwise a clean re-scan after a
+// likely-injection scan renders "No hidden content…" in red.
+function resetStatus(el) {
+  el.className = "";
+}
+
+function verdictLine(r) {
+  const parts = [];
+  if (r.bySeverity.high) parts.push(`${r.bySeverity.high} high`);
+  if (r.bySeverity.medium) parts.push(`${r.bySeverity.medium} medium`);
+  if (r.bySeverity.low) parts.push(`${r.bySeverity.low} low`);
+  const corroborating = r.corroborationCount
+    ? `, ${r.corroborationCount} corroborating signal${r.corroborationCount === 1 ? "" : "s"}`
+    : "";
+  const label = VERDICT_LABEL[r.verdict] ?? r.verdict;
+  return `${label} — ${r.count} finding${r.count === 1 ? "" : "s"}: ${parts.join(", ")}${corroborating}`;
+}
+
 // Findings carry decoded payloads at full length so detectors.js can re-scan
 // them for corroborating content; the popup is where they get shortened.
 function preview(s) {
@@ -177,6 +216,22 @@ function buildRow(item, { ids, contexts, cycleKey, count }) {
     ctxEl.textContent = item.context;
     row.appendChild(ctxEl);
   }
+  // Why this finding was promoted. Both sources render the same way — the user
+  // does not care whether the evidence came from inside the payload or from a
+  // neighbouring finding, only that it exists.
+  const why = [
+    ...(item.corroboration || []).map(
+      (c) =>
+        `decoded text contains ${CORROBORATION_LABEL[c.type] ?? c.type}${c.match ? `: “${preview(c.match)}”` : ""}`
+    ),
+    ...(item.contextual || []),
+  ];
+  for (const reason of why) {
+    const el = document.createElement("div");
+    el.className = "why";
+    el.textContent = `└ ${reason}`;
+    row.appendChild(el);
+  }
   if (ids.length > 1) {
     // Cycling only helps if you can see which occurrence you just landed
     // on. Without this, a second click on the same row looks like it did
@@ -206,14 +261,12 @@ function render(r) {
   // unboundedly across repeated re-scans.
   clickCycles.clear();
   if (!r || r.count === 0) {
+    resetStatus(els.status);
     els.status.textContent = "No hidden content or injection markers found.";
     return;
   }
-  const parts = [];
-  if (r.bySeverity.high) parts.push(`${r.bySeverity.high} high`);
-  if (r.bySeverity.medium) parts.push(`${r.bySeverity.medium} medium`);
-  if (r.bySeverity.low) parts.push(`${r.bySeverity.low} low`);
-  els.status.textContent = `${r.count} finding${r.count === 1 ? "" : "s"}: ${parts.join(", ")}`;
+  els.status.className = "verdict-" + r.verdict;
+  els.status.textContent = verdictLine(r);
 
   const groups = new Map(); // groupKey -> item[]
   for (const item of r.items) {
@@ -257,10 +310,16 @@ function render(r) {
 }
 
 function setBadge(r, tabId) {
-  const worst = r && r.worst;
+  // Colour tracks the VERDICT, not the worst single finding: an uncorroborated
+  // MEDIUM (a lone zero-width space) is noise and should not read amber.
   const concerning = r ? r.bySeverity.high + r.bySeverity.medium : 0;
   const text = concerning ? String(concerning) : "";
-  const color = worst === "high" ? "#e5484d" : worst === "medium" ? "#f5a623" : "#3b82f6";
+  const color =
+    r && r.verdict === "likely-injection"
+      ? "#e5484d"
+      : r && r.verdict === "suspicious"
+        ? "#f5a623"
+        : "#3b82f6";
   browser.action.setBadgeText({ text, tabId });
   browser.action.setBadgeBackgroundColor({ color, tabId });
 }
@@ -269,4 +328,4 @@ els.rescan.addEventListener("click", scan);
 scan();
 
 if (typeof module !== "undefined" && module.exports)
-  module.exports = { typeLabel, preview };
+  module.exports = { typeLabel, preview, verdictLine, resetStatus };

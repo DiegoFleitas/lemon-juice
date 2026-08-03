@@ -12,7 +12,7 @@ globalThis.browser = {
   action: { setBadgeText() {}, setBadgeBackgroundColor() {} },
 };
 
-const { typeLabel, preview } = require("../popup.js");
+const { typeLabel, preview, verdictLine, resetStatus } = require("../popup.js");
 
 test("typeLabel: unicode-tag", () => {
   const result = typeLabel({ type: "unicode-tag", decoded: "hello" });
@@ -221,4 +221,48 @@ test("typeLabel: truncates a long decoded payload", () => {
   const result = typeLabel({ type: "encoded-base64", decoded: "y".repeat(300) });
   assert.ok(result.includes("…"));
   assert.ok(result.length < 200);
+});
+
+test("verdictLine: likely injection leads with the tier", () => {
+  const line = verdictLine({
+    verdict: "likely-injection",
+    count: 3,
+    corroborationCount: 2,
+    bySeverity: { high: 1, medium: 1, low: 1 },
+  });
+  assert.match(line, /Likely injection attempt/);
+  assert.match(line, /3 findings/);
+  assert.match(line, /2 corroborating signals/);
+});
+
+test("verdictLine: noise does not claim corroboration", () => {
+  const line = verdictLine({
+    verdict: "noise",
+    count: 1,
+    corroborationCount: 0,
+    bySeverity: { high: 0, medium: 1, low: 0 },
+  });
+  assert.match(line, /nothing corroborating/);
+  // Not /corroborating/ — the noise LABEL contains that word. What must be
+  // absent is the ", N corroborating signals" suffix.
+  assert.doesNotMatch(line, /corroborating signal/);
+});
+
+test("verdictLine: a single corroborating signal is not pluralised", () => {
+  const line = verdictLine({
+    verdict: "suspicious",
+    count: 1,
+    corroborationCount: 1,
+    bySeverity: { high: 0, medium: 1, low: 0 },
+  });
+  assert.match(line, /1 corroborating signal$/);
+});
+
+test("resetStatus: clears a stale verdict class", () => {
+  // Guards the sticky-class bug: render() early-returns on count === 0 and
+  // scan() writes "Scanning…" — neither sets a verdict class, so a previous
+  // likely-injection scan would leave the next clean result rendered in red.
+  const stub = { className: "verdict-likely-injection" };
+  resetStatus(stub);
+  assert.equal(stub.className, "");
 });

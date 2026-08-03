@@ -1175,6 +1175,88 @@
     return { ...finding, severity: next, promotedFrom: finding.severity };
   }
 
+  const CONCEALMENT_TYPES = new Set([
+    "invisible",
+    "unicode-tag",
+    "css-hidden",
+    "variation-selector-smuggling",
+    "sneaky-bits-smuggling",
+  ]);
+  const CONTENT_TYPES = new Set([
+    "instruction-phrase",
+    "control-token",
+    "context-switch",
+    "code-execution",
+    "reverse-shell",
+  ]);
+
+  // Text a human never sees but an LLM ingesting the DOM does. Deliberately
+  // does NOT include plain body text: a page *about* prompt injection carries
+  // its instruction phrases visibly, a page *carrying* one hides them. That
+  // asymmetry is the whole point — see README.md's note on the OWASP page and
+  // this repo's own README false-positiving.
+  function concealedPlacement(item) {
+    if (item.inComment) return "inside an HTML comment";
+    if (item.attrName) return `inside the ${item.attrName} attribute`;
+    return null;
+  }
+
+  function itemTargets(item) {
+    if (item.targetIds && item.targetIds.length) return item.targetIds;
+    return item.targetId ? [item.targetId] : [];
+  }
+
+  // Cross-finding corroboration, the between-detector analogue of
+  // scanDecodedPayloads' within-finding check. Takes scan.js's deduped item
+  // array (pure — no DOM), returns a new array with promotions applied.
+  function applyContextualPromotion(items) {
+    const byTarget = new Map();
+    for (const item of items) {
+      for (const id of itemTargets(item)) {
+        const arr = byTarget.get(id) || [];
+        arr.push(item);
+        byTarget.set(id, arr);
+      }
+    }
+
+    const reasons = new Map(); // item -> Set<string>
+    const note = (item, reason) => {
+      const s = reasons.get(item) || new Set();
+      s.add(reason);
+      reasons.set(item, s);
+    };
+
+    // A hiding mechanism and injected content on the same element corroborate
+    // each other. Two mechanisms, or two content findings, do not.
+    for (const group of byTarget.values()) {
+      const concealment = group.filter((i) => CONCEALMENT_TYPES.has(i.type));
+      const content = group.filter((i) => CONTENT_TYPES.has(i.type));
+      if (!concealment.length || !content.length) continue;
+      for (const i of concealment) note(i, "co-located with injected content");
+      for (const i of content) note(i, "co-located with a concealment mechanism");
+    }
+
+    for (const item of items) {
+      if (!CONTENT_TYPES.has(item.type)) continue;
+      const where = concealedPlacement(item);
+      if (where) note(item, where);
+    }
+
+    return items.map((item) => {
+      const why = reasons.get(item);
+      if (!why) return item;
+      const contextual = [...why];
+      const next = NEXT_SEVERITY[item.severity];
+      if (next === item.severity) return { ...item, contextual };
+      return {
+        ...item,
+        severity: next,
+        promotedFrom: item.promotedFrom ?? item.severity,
+        contextual,
+      };
+    });
+  }
+
   // --- aggregate ------------------------------------------------------------
   function scanText(text) {
     const invisible = scanInvisible(text);
@@ -1328,6 +1410,7 @@
     scanReverseShell,
     scanDecodedPayloads,
     promoteSeverity,
+    applyContextualPromotion,
     hasMixedScript,
     normalizeDeobfuscated,
     unicodeLetterToAscii,

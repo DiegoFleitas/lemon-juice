@@ -1684,3 +1684,63 @@ test("scanText: a base64 code sample containing eval( does not reach HIGH", () =
   assert.ok(parent, "expected the base64 blob to be found");
   assert.notEqual(parent.severity, PIScanner.SEVERITY.HIGH);
 });
+
+test("applyContextualPromotion: concealment co-located with content promotes both", () => {
+  const items = [
+    { type: "invisible", severity: PIScanner.SEVERITY.MEDIUM, targetIds: ["pi-1"] },
+    {
+      type: "instruction-phrase",
+      severity: PIScanner.SEVERITY.LOW,
+      targetIds: ["pi-1"],
+    },
+  ];
+  const [mech, content] = PIScanner.applyContextualPromotion(items);
+  assert.equal(mech.severity, PIScanner.SEVERITY.HIGH);
+  assert.equal(content.severity, PIScanner.SEVERITY.MEDIUM);
+  assert.ok(content.contextual.some((r) => /co-located/.test(r)));
+});
+
+test("applyContextualPromotion: instruction phrase in a comment is promoted", () => {
+  const items = [
+    {
+      type: "instruction-phrase",
+      severity: PIScanner.SEVERITY.LOW,
+      targetIds: ["pi-1"],
+      inComment: true,
+    },
+  ];
+  const [item] = PIScanner.applyContextualPromotion(items);
+  assert.equal(item.severity, PIScanner.SEVERITY.MEDIUM);
+  assert.ok(item.contextual.some((r) => /HTML comment/.test(r)));
+});
+
+test("applyContextualPromotion: instruction phrase in visible body text is NOT promoted", () => {
+  // This is the discriminator that keeps pages *about* prompt injection
+  // (the OWASP page, this repo's README) from climbing. Do not weaken it.
+  const items = [
+    { type: "instruction-phrase", severity: PIScanner.SEVERITY.LOW, targetIds: ["pi-1"] },
+  ];
+  const [item] = PIScanner.applyContextualPromotion(items);
+  assert.equal(item.severity, PIScanner.SEVERITY.LOW);
+  assert.equal(item.contextual, undefined);
+});
+
+test("applyContextualPromotion: two concealment findings alone do not corroborate", () => {
+  const items = [
+    { type: "invisible", severity: PIScanner.SEVERITY.LOW, targetIds: ["pi-1"] },
+    { type: "css-hidden", severity: PIScanner.SEVERITY.MEDIUM, targetIds: ["pi-1"] },
+  ];
+  const out = PIScanner.applyContextualPromotion(items);
+  assert.equal(out[0].severity, PIScanner.SEVERITY.LOW);
+  assert.equal(out[1].severity, PIScanner.SEVERITY.MEDIUM);
+});
+
+test("applyContextualPromotion: findings on different elements do not corroborate", () => {
+  const items = [
+    { type: "invisible", severity: PIScanner.SEVERITY.LOW, targetIds: ["pi-1"] },
+    { type: "instruction-phrase", severity: PIScanner.SEVERITY.LOW, targetIds: ["pi-2"] },
+  ];
+  const out = PIScanner.applyContextualPromotion(items);
+  assert.equal(out[0].severity, PIScanner.SEVERITY.LOW);
+  assert.equal(out[1].severity, PIScanner.SEVERITY.LOW);
+});

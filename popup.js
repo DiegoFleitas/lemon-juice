@@ -108,23 +108,30 @@ async function scrollTo(targetId) {
 // shadow-DOM/iframe test fixtures, fully distinguishable).
 const FOLD_THRESHOLD = 5;
 
+// Findings carry decoded payloads at full length so detectors.js can re-scan
+// them for corroborating content; the popup is where they get shortened.
+function preview(s) {
+  return s.length > 120 ? s.slice(0, 120) + "…" : s;
+}
+
 function typeLabel(item) {
   return (
     {
       "unicode-tag": (i) =>
-        `Invisible ASCII-smuggling character${i.decoded ? ` → decodes to: “${i.decoded}”` : ""}`,
+        `Invisible ASCII-smuggling character${i.decoded ? ` → decodes to: “${preview(i.decoded)}”` : ""}`,
       invisible: (i) => `Invisible character: ${i.name} (${i.hex})`,
       "encoded-base64": (i) =>
-        `Encoded blob${i.likelyJwt ? " (looks like a JWT)" : ""} → “${i.decoded}”`,
-      "encoded-percent": (i) => `Percent-encoded blob → “${i.decoded}”`,
-      "encoded-hex-escape": (i) => `Hex-escaped blob → “${i.decoded}”`,
-      "encoded-spaced-hex": (i) => `Space-separated hex byte blob → “${i.decoded}”`,
-      "encoded-unicode-escape": (i) => `\\uXXXX-escaped blob → “${i.decoded}”`,
-      "encoded-html-entity": (i) => `HTML-entity-encoded blob → “${i.decoded}”`,
+        `Encoded blob${i.likelyJwt ? " (looks like a JWT)" : ""} → “${preview(i.decoded)}”`,
+      "encoded-percent": (i) => `Percent-encoded blob → “${preview(i.decoded)}”`,
+      "encoded-hex-escape": (i) => `Hex-escaped blob → “${preview(i.decoded)}”`,
+      "encoded-spaced-hex": (i) =>
+        `Space-separated hex byte blob → “${preview(i.decoded)}”`,
+      "encoded-unicode-escape": (i) => `\\uXXXX-escaped blob → “${preview(i.decoded)}”`,
+      "encoded-html-entity": (i) => `HTML-entity-encoded blob → “${preview(i.decoded)}”`,
       "variation-selector-smuggling": (i) =>
-        `Hidden variation-selector payload → “${i.decoded}”`,
+        `Hidden variation-selector payload → “${preview(i.decoded)}”`,
       "sneaky-bits-smuggling": (i) =>
-        `Hidden invisible-bit-encoded payload → “${i.decoded}”`,
+        `Hidden invisible-bit-encoded payload → “${preview(i.decoded)}”`,
       "control-token": (i) => `LLM chat-template control token: “${i.match}”`,
       "css-hidden": (i) =>
         `Visually hidden text (${i.reasons.join(", ")})${i.likelyA11y ? " — looks like accessibility markup, downgraded" : ""}`,
@@ -260,4 +267,5 @@ function setBadge(r, tabId) {
 els.rescan.addEventListener("click", scan);
 scan();
 
-if (typeof module !== "undefined" && module.exports) module.exports = { typeLabel };
+if (typeof module !== "undefined" && module.exports)
+  module.exports = { typeLabel, preview };

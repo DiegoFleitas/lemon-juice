@@ -12,7 +12,7 @@ globalThis.browser = {
   action: { setBadgeText() {}, setBadgeBackgroundColor() {} },
 };
 
-const { typeLabel } = require("../popup.js");
+const { typeLabel, preview } = require("../popup.js");
 
 test("typeLabel: unicode-tag", () => {
   const result = typeLabel({ type: "unicode-tag", decoded: "hello" });
@@ -196,4 +196,21 @@ test("typeLabel: reverse-shell", () => {
   });
   assert.match(result, /Reverse-shell command/);
   assert.match(result, /bash -i/);
+});
+
+test("preview: truncates long text at display time", () => {
+  const long = "x".repeat(300);
+  const result = preview(long);
+  assert.equal(result.length, 121);
+  assert.ok(result.endsWith("…"));
+});
+
+test("preview: leaves short text untouched", () => {
+  assert.equal(preview("short"), "short");
+});
+
+test("typeLabel: truncates a long decoded payload", () => {
+  const result = typeLabel({ type: "encoded-base64", decoded: "y".repeat(300) });
+  assert.ok(result.includes("…"));
+  assert.ok(result.length < 200);
 });

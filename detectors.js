@@ -178,6 +178,12 @@
 
   // --- 2. Encoded-payload heuristic (OWASP scenario #9) ----------------------
   // Only flag if decoded output looks like readable ASCII (avoids hashes, data-URIs, etc.).
+  // Decoded payloads are re-scanned for corroborating content (see
+  // scanDecodedPayloads), so they must be stored at full length — truncating
+  // here would blind the re-scan. popup.js truncates at display time instead.
+  // The cap only bounds what gets structured-cloned onto window.__PIScanResult.
+  const MAX_DECODED = 4096;
+
   const BASE64_RUN = /[A-Za-z0-9+/]{24,}={0,2}/g;
 
   // JWTs (header.payload.signature, each segment base64) decode cleanly and are
@@ -220,7 +226,7 @@
           severity: jwt ? SEVERITY.LOW : SEVERITY.MEDIUM,
           index: m.index,
           sample: blob.slice(0, 32) + (blob.length > 32 ? "…" : ""),
-          decoded: decoded.slice(0, 120),
+          decoded: decoded.slice(0, MAX_DECODED),
           ...(jwt ? { likelyJwt: true } : {}),
         });
       }
@@ -277,7 +283,7 @@
           severity: SEVERITY.MEDIUM,
           index: m.index,
           sample: blob.slice(0, 32) + (blob.length > 32 ? "…" : ""),
-          decoded: decoded.slice(0, 120),
+          decoded: decoded.slice(0, MAX_DECODED),
         });
       }
     }
@@ -307,7 +313,7 @@
           severity: SEVERITY.MEDIUM,
           index: m.index,
           sample: blob.slice(0, 32) + (blob.length > 32 ? "…" : ""),
-          decoded: decoded.slice(0, 120),
+          decoded: decoded.slice(0, MAX_DECODED),
         });
       }
     }
@@ -339,7 +345,7 @@
           severity: SEVERITY.MEDIUM,
           index: m.index,
           sample: blob.slice(0, 32) + (blob.length > 32 ? "…" : ""),
-          decoded: decoded.slice(0, 120),
+          decoded: decoded.slice(0, MAX_DECODED),
         });
       }
     }
@@ -367,7 +373,7 @@
           severity: SEVERITY.LOW,
           index: m.index,
           sample: blob.slice(0, 32) + (blob.length > 32 ? "\u2026" : ""),
-          decoded: decoded.slice(0, 120),
+          decoded: decoded.slice(0, MAX_DECODED),
         });
       }
     }
@@ -406,7 +412,7 @@
           severity: SEVERITY.LOW,
           index: m.index,
           sample: blob.slice(0, 32) + (blob.length > 32 ? "\u2026" : ""),
-          decoded: decoded.slice(0, 120),
+          decoded: decoded.slice(0, MAX_DECODED),
         });
       }
     }
@@ -696,7 +702,7 @@
             severity: SEVERITY.HIGH,
             index: runStart,
             length: bytes.length,
-            decoded: decoded.slice(0, 120),
+            decoded: decoded.slice(0, MAX_DECODED),
           });
         }
       }
@@ -756,7 +762,7 @@
             severity: SEVERITY.HIGH,
             index: runStart,
             length: bits.length,
-            decoded: decoded.slice(0, 120),
+            decoded: decoded.slice(0, MAX_DECODED),
           });
         }
       }

@@ -1,7 +1,7 @@
 # garak against the pipeline, not the model
 
 Garak scans a chat endpoint. The interesting target is not `llama3.2` in
-isolation — it is *page text → prompt → model*, because that is where indirect
+isolation — it is _page text → prompt → model_, because that is where indirect
 prompt injection lives. `shim.py` exposes that pipeline as an OpenAI-compatible
 endpoint, so garak probes the composition.
 

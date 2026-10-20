@@ -23,12 +23,12 @@ committed runs are `2026-10-20-before-smallcaps` and `2026-10-20-after-smallcaps
 
 ## What it measures
 
-| Metric | Definition | Why it matters |
-|---|---|---|
-| **any finding** | `findings.length > 0` | Did anything at all fire, including informational? |
-| **medium+** | any HIGH or MEDIUM finding | Was a *mechanism* spotted (Tags block, bidi, base64, …)? |
-| **recovered** | the instruction itself was recognised (`instruction-phrase`, `control-token`, `context-switch`), including as a corroborator of a decoded payload | Did the scanner understand the payload, not just the wrapper? |
-| **verdict** | `pageVerdict` reached `suspicious` or `likely-injection` | What the product would show the user |
+| Metric          | Definition                                                                                                                                        | Why it matters                                                |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| **any finding** | `findings.length > 0`                                                                                                                             | Did anything at all fire, including informational?            |
+| **medium+**     | any HIGH or MEDIUM finding                                                                                                                        | Was a _mechanism_ spotted (Tags block, bidi, base64, …)?      |
+| **recovered**   | the instruction itself was recognised (`instruction-phrase`, `control-token`, `context-switch`), including as a corroborator of a decoded payload | Did the scanner understand the payload, not just the wrapper? |
+| **verdict**     | `pageVerdict` reached `suspicious` or `likely-injection`                                                                                          | What the product would show the user                          |
 
 Mechanism detection and payload recovery are separated on purpose: a scanner can
 catch every Tags-block payload while never recognising the sentence inside it.
@@ -54,30 +54,30 @@ not a broken encoder.
 84 attack cases, 26 benign pages. Numbers below are **after** the small-caps fix;
 the delta is in the next section.
 
-| Technique | n | any finding | medium+ | recovered | verdict |
-|---|---|---|---|---|---|
-| unicode-tags | 6 | 100% | 100% | 50% | 100% |
-| variation-selectors | 6 | 100% | 100% | 50% | 100% |
-| sneaky-bits | 6 | 100% | 100% | 50% | 100% |
-| bidi-controls | 6 | 100% | 100% | 50% | 100% |
-| zero-width | 6 | 100% | 100% | 50% | 50% |
-| base64 | 6 | 100% | 100% | 50% | 50% |
-| percent-encoded | 6 | 100% | 100% | 50% | 50% |
-| hex-escapes | 6 | 100% | 100% | 50% | 50% |
-| fullwidth-nfkc | 6 | 50% | 50% | 50% | 50% |
-| homoglyphs | 6 | 100% | 50% | 50% | 50% |
-| leetspeak | 6 | 50% | 50% | 50% | 50% |
-| plain-control | 6 | 50% | 0% | 50% | 0% |
-| spaced-letters | 6 | 17% | 17% | 17% | 17% |
-| small-caps | 6 | 50% | 50% | 50% | 50% |
-| **overall** | **84** | **80%** | **73%** | **48%** | **58%** |
+| Technique           | n      | any finding | medium+ | recovered | verdict |
+| ------------------- | ------ | ----------- | ------- | --------- | ------- |
+| unicode-tags        | 6      | 100%        | 100%    | 50%       | 100%    |
+| variation-selectors | 6      | 100%        | 100%    | 50%       | 100%    |
+| sneaky-bits         | 6      | 100%        | 100%    | 50%       | 100%    |
+| bidi-controls       | 6      | 100%        | 100%    | 50%       | 100%    |
+| zero-width          | 6      | 100%        | 100%    | 50%       | 50%     |
+| base64              | 6      | 100%        | 100%    | 50%       | 50%     |
+| percent-encoded     | 6      | 100%        | 100%    | 50%       | 50%     |
+| hex-escapes         | 6      | 100%        | 100%    | 50%       | 50%     |
+| fullwidth-nfkc      | 6      | 50%         | 50%     | 50%       | 50%     |
+| homoglyphs          | 6      | 100%        | 50%     | 50%       | 50%     |
+| leetspeak           | 6      | 50%         | 50%     | 50%       | 50%     |
+| plain-control       | 6      | 50%         | 0%      | 50%       | 0%      |
+| spaced-letters      | 6      | 17%         | 17%     | 17%       | 17%     |
+| small-caps          | 6      | 50%         | 50%     | 50%       | 50%     |
+| **overall**         | **84** | **80%**     | **73%** | **48%**   | **58%** |
 
 By payload class:
 
-| Class | n | medium+ | recovered | verdict |
-|---|---|---|---|---|
-| canonical | 42 | 95% | 88% | 88% |
-| paraphrase | 42 | 57% | 0% | 29% |
+| Class      | n   | medium+ | recovered | verdict |
+| ---------- | --- | ------- | --------- | ------- |
+| canonical  | 42  | 95%     | 88%       | 88%     |
+| paraphrase | 42  | 57%     | 0%        | 29%     |
 
 Benign: any finding **3.8%** (1 page in 26), medium+ **0%**, verdict **0%**.
 The one noisy page is the security blog that quotes injection phrases — expected,
@@ -87,16 +87,16 @@ Latency on attack scans: p50 0.7 ms, p95 4.0 ms, max 27 ms.
 
 ### Delta: small caps (the one fix so far)
 
-| Metric | Before | After |
-|---|---|---|
-| small-caps recovered | 0% | 50% |
-| small-caps verdict | 0% | 50% |
-| overall recovered | 44% | 48% |
-| canonical recovered | 88% | 88% |
-| benign verdict FPR | 0% | 0% |
+| Metric               | Before | After |
+| -------------------- | ------ | ----- |
+| small-caps recovered | 0%     | 50%   |
+| small-caps verdict   | 0%     | 50%   |
+| overall recovered    | 44%    | 48%   |
+| canonical recovered  | 88%    | 88%   |
+| benign verdict FPR   | 0%     | 0%    |
 
 Only the six small-caps rows changed in the per-case diff (P1, P3, P6 improved;
-P2, P4, P5 remain out of reach because the *phrasing* is not covered, not the
+P2, P4, P5 remain out of reach because the _phrasing_ is not covered, not the
 encoding). 174 unit tests pass. The fix is a U+1D00-block fold in
 `unicodeLetterToAscii`, not a new detector.
 
@@ -110,7 +110,7 @@ encoding). 174 unit tests pass. The fix is a U+1D00-block fold in
    that exists only in the wild is absent from every number here and scores 0 by
    construction.
 2. **Recognising the payload is the weak axis.** Only half the canonical
-   payloads are recovered, and *none* of the paraphrases. Every paraphrase
+   payloads are recovered, and _none_ of the paraphrases. Every paraphrase
    detection at 29% comes from the wrapper (bidi control, control token), not
    from understanding the sentence. This quantifies the README's "rephrased
    override language" miss — it is not an edge case, it is the majority of
@@ -122,7 +122,7 @@ encoding). 174 unit tests pass. The fix is a U+1D00-block fold in
 4. **Spaced letters: 17%, and the cause is not what it looked like.** This is not
    a broken normaliser: `SPACED_INSTRUCTION_PATTERNS` covers three override
    families (ignore/disregard/never-say), so only the canonical "ignore all
-   previous instructions" matches. A spaced *"you are now in developer mode"*
+   previous instructions" matches. A spaced _"you are now in developer mode"_
    is never collapsed. The README now says so under Known misses. Generic
    spaced-text collapsing is a design change with its own false-positive risk —
    filed, not rushed.

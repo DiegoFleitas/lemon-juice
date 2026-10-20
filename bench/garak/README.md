@@ -1,7 +1,7 @@
 # garak against the pipeline, not the model
 
 Garak scans a chat endpoint. The interesting target is not `llama3.2` in
-isolation — it is _page text → prompt → model_, because that is where indirect
+isolation — it is *page text → prompt → model*, because that is where indirect
 prompt injection lives. `shim.py` exposes that pipeline as an OpenAI-compatible
 endpoint, so garak probes the composition.
 
@@ -22,6 +22,15 @@ llama serve -m ~/models/qwen2.5-3b-instruct-q4_k_m.gguf -c 4096 -ngl all
 # terminal 2 — the shim ingests the page on every request
 python bench/garak/shim.py --page bench/garak/pages/poisoned.txt \
                            --backend llamacpp
+```
+
+`rest.json` omits the model name on purpose: the shim fills it in, so the same
+config works against a single-model server and against llama.cpp's router mode,
+where the model must be named:
+
+```sh
+python bench/garak/shim.py --page bench/garak/pages/poisoned.txt \
+  --backend llamacpp --model "unsloth/Qwen3-0.6B-GGUF:Q4_0"
 ```
 
 The `llamacpp` backend defaults to `http://127.0.0.1:9931/v1` (llama.cpp's

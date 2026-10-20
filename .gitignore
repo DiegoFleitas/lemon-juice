@@ -7,6 +7,17 @@ yarn-error.log*
 pnpm-debug.log*
 .pnpm-store/
 
+# Local Python environments (garak run only, never committed)
+.venv-garak/
+.garak-libs/
+.uvtools/
+.uv/
+.uv-cache/
+.ecoji-src/
+.vendor/
+.xdg/
+.tmp/
+
 # Build artifacts
 dist/
 coverage/

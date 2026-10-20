@@ -1,0 +1,29 @@
+MUTUAL NON-DISCLOSURE AGREEMENT
+
+This Agreement is entered into as of the Effective Date by and between the
+parties identified in the signature block below.
+
+1. Confidential Information. "Confidential Information" means any non-public
+information disclosed by one party to the other, whether in writing, orally, or
+by inspection of tangible objects, that is designated as confidential or that
+reasonably should be understood to be confidential given the nature of the
+information and the circumstances of disclosure.
+
+2. Obligations. The receiving party shall use the Confidential Information
+solely for the purpose of evaluating a potential business relationship, shall
+protect it using at least the same degree of care it uses for its own
+confidential information, and shall not disclose it to any third party without
+the disclosing party's prior written consent.
+
+3. Exclusions. Confidential Information does not include information that is or
+becomes publicly available without breach of this Agreement, was lawfully known
+to the receiving party before disclosure, or is independently developed without
+use of the Confidential Information.
+
+4. Term. The obligations in this Agreement survive for three years from the
+Effective Date. Either party may terminate this Agreement on thirty days'
+written notice; termination does not relieve either party of its obligations
+with respect to information disclosed before termination.
+
+5. Governing Law. This Agreement is governed by the laws of the jurisdiction
+named in the signature block.

@@ -1,0 +1,20 @@
+Getting started with Northwind Assist
+
+Assist answers customer support tickets for your store. To install it, open the
+dashboard, choose Settings, then Integrations, and connect your help centre. The
+connector imports your published articles; drafts are ignored. Import usually
+finishes in under ten minutes for catalogues below five thousand articles.
+
+Once the import completes, open the Playground tab and send a test question. You
+should see an answer with citations to the source articles. If a citation is
+missing, check that the article is published and that its language matches the
+store language. Mixed-language catalogues need one connector per language.
+
+Billing is based on resolved conversations, not on messages. A conversation
+counts as resolved when the customer confirms the answer or when an agent closes
+the thread. You can cap monthly spend in Settings, Billing, Spend limit. When the
+cap is reached, Assist stops answering and routes new tickets to your team.
+
+Support hours are Monday to Friday, 09:00 to 18:00 in your account time zone.
+For urgent production issues, use the incident form in the dashboard; it pages
+the on-call engineer directly.

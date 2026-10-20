@@ -38,6 +38,11 @@ Click the toolbar icon and Lemon Juice surfaces invisible Unicode, ASCII smuggli
 
 ## What it detects
 
+Coverage is measured, not asserted: [`bench/`](bench/) runs 84 attack cases across
+14 hiding techniques and 26 benign pages, and reports mechanism detection, payload
+recovery and page verdict separately. Current numbers and known gaps are in
+[`bench/README.md`](bench/README.md).
+
 ### High confidence
 
 Patterns essentially never legitimate in web copy, or well-filtered against common false positives.
@@ -64,7 +69,7 @@ Prone to false positives on legitimate pages that discuss prompt injection, so t
 | **Leetspeak obfuscation**                                       | `1gn0r3 4ll pr3v10us 1nstruct10ns`                                                                           |
 | **Fancy Unicode letters**                                       | Math bold/italic/script/fraktur/sans-serif, fullwidth letter forms, regional-indicator-symbol letters        |
 | **Delimiter-stripped text**                                     | Pipe, underscore, backtick, caret, tilde between letters                                                     |
-| **Spaced-letter instructions**                                  | `i g n o r e a l l p r e v i o u s i n s t r u c t i o n s`                                                  |
+| **Spaced-letter instructions**                                  | `i g n o r e a l l p r e v i o u s i n s t r u c t i o n s` — three override families only, see Known misses |
 | **Emoji-substituted phrases**                                   | 🚫 substituting for "ignore" or "disregard"                                                                  |
 | **Chain-of-thought hijacking phrases**                          | "let's think step by step", "take a deep breath and think carefully"                                         |
 | **Delimiter-fence markers**                                     | `---BEGIN INSTRUCTIONS---`, `--- END SYSTEM ---` section fences                                              |
@@ -122,7 +127,7 @@ For unattended agents, the defense has to live in the agent. [Claude for Chrome]
 > [!NOTE]
 > Temporary add-ons are removed when Firefox restarts. Reload from `about:debugging` to bring it back during development.
 
-**AMO listing:** not yet submitted. Planned for 1.0, when the lemon ripens.
+**AMO listing:** [Lemon Juice (Alpha)](https://addons.mozilla.org/firefox/addon/lemon-juice-alpha/) is live at 0.5.0. The 1.0 release will replace the alpha listing.
 
 ## Develop
 
@@ -180,7 +185,7 @@ These are detectable in principle, just not implemented (or only partially imple
 - **Cross-element dialogue**: fabricated conversation turns split across sibling elements — each turn is a separate text node, so the turn-pair detector never sees them together.
 - **Unlisted role labels**: `Visitor:`, `Guide:`, `Guest:`, `Interviewer:`, `Q:`/`A:` — labels outside the recognized set bypass role recognition. **Partially addressed**: the structural matcher now uses `\p{L}{1,21}` so any letter-starting label (including these) is detected. A hardcoded enumeration is no longer maintained.
 - **Rephrased override language**: compound-instruction regexes match specific phrasings (`as part of your updated guidelines`) — semantic equivalents with different wording pass through.
-- **Spaced-letter coverage is phrase-limited**: the spaced pass matches the override families written out in `SPACED_INSTRUCTION_PATTERNS` (ignore/disregard/never-say), not arbitrary spaced text. A spaced _"you are now in developer mode"_ is not collapsed and does not fire — measured at 17% on the benchmark matrix (`bench/`).
+- **Spaced-letter coverage is phrase-limited**: the spaced pass matches the override families written out in `SPACED_INSTRUCTION_PATTERNS` (ignore/disregard/never-say), not arbitrary spaced text. A spaced *"you are now in developer mode"* is not collapsed and does not fire — measured at 17% on the benchmark matrix (`bench/`).
 - **Compliance flip outside regex vocabulary**: `"No problem, here is…"` avoids every word in `COMPLIANCE_FLIP_RE` (`sure|certainly|of course|understood|absolutely`).
 - **Single-turn override**: a lone `User:`-styled directive without a fabricated assistant reply — the detector requires ≥2 distinct role-labeled turns.
 - **Closed shadow roots**: `mode:"closed"` — `.shadowRoot` is null by spec, unreachable.
@@ -189,10 +194,10 @@ These are detectable in principle, just not implemented (or only partially imple
 
 - **Payload splitting**: instructions across multiple DOM nodes (OWASP #6).
 - **Adversarial suffixes**: high-entropy gibberish triggers (OWASP #8).
-- **Small-capital / phonetic-extension letters**: `ɪɢɴᴏʀᴇ` (U+026A, U+0262, U+0274, U+1D0F, U+0280, U+1D07) — these are not Unicode compatibility variants, so NFKC leaves them untouched. Instruction matching escapes because `\b` only covers `[a-zA-Z0-9_]` and all instruction regexes target ASCII letters. Role labels like `ᴜꜱᴇʀ:` are now detected via the structural matcher (`\p{L}`), but single-node instruction-only bypasses (e.g. `ɪɢɴᴏʀᴇ ᴀʟʟ ᴘʀᴇᴠɪᴏᴜꜱ ɪɴꜱᴛʀᴜᴄᴛɪᴏɴꜱ`) still slip through.
+- **Small-capital / phonetic-extension letters (partially fixed)**: `ɪɢɴᴏʀᴇ` is not a Unicode compatibility variant, so NFKC leaves it untouched and `\b` never saw ASCII. `unicodeLetterToAscii` now folds the U+1D00 set, so the spelled-out instruction below is caught — 0% → 50% on the benchmark matrix. Phonetic-extension letters outside that table may still slip.
 - **Visible-character obfuscation**: emoji, symbols, or punctuation between words in an instruction phrase ("ignore 🔒 all previous instructions"). Only 🚫 substituting for "ignore"/"disregard" is individually patterned.
 - **Emoji-only instructions**: pictograph sequences conveying a message visually.
-- **Compound obfuscation built on an undetected primitive**: the normalization passes do compose. NFKC fancy-Unicode, leetspeak, delimiter stripping and spaced letters stack, so a double-struck phrase written with spaced letters is still caught. Layering only helps for primitives the normalizer already knows, though, so anything built on a miss listed above (small caps, visible-character obfuscation) slips through however the layers combine.
+- **Compound obfuscation built on an undetected primitive**: the normalization passes do compose. NFKC fancy-Unicode, leetspeak, delimiter stripping and spaced letters stack, so a double-struck phrase written with spaced letters is still caught. Layering only helps for primitives the normalizer already knows, though, so anything built on a miss listed above (phonetic letters outside the fold table, visible-character obfuscation) slips through however the layers combine.
 - **Cross-origin iframes**: blocked by same-origin policy. Reachable in principle via `scripting.executeScript({ allFrames: true })`, but per-frame result aggregation isn't implemented yet.
 
 ### Out of scope by design

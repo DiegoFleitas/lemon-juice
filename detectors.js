@@ -996,10 +996,47 @@
   }
 
   // --- Regional-indicator-symbol folding (NFKC can't fold these) ------------
+  // Phonetic small capitals (U+1D00 block and neighbours) are NOT Unicode
+  // compatibility variants, so NFKC leaves them alone and \b word-boundary
+  // matching never sees ASCII. They appear in benign IPA/phonetic writing, but
+  // the fold only feeds instruction-scanning, whose patterns are phrase-
+  // specific, so the false-positive surface is unchanged from any other
+  // stylised letter. Lowercase on purpose: normalizeDeobfuscated lowercases the
+  // emitted replacement anyway.
+  const SMALL_CAPS = new Map([
+    [0x1d00, "a"], // ᴀ
+    [0x0299, "b"], // ʙ
+    [0x1d04, "c"], // ᴄ
+    [0x1d05, "d"], // ᴅ
+    [0x1d07, "e"], // ᴇ
+    [0xa730, "f"], // ꜰ
+    [0x0262, "g"], // ɢ
+    [0x029c, "h"], // ʜ
+    [0x026a, "i"], // ɪ
+    [0x1d0a, "j"], // ᴊ
+    [0x1d0b, "k"], // ᴋ
+    [0x029f, "l"], // ʟ
+    [0x1d0d, "m"], // ᴍ
+    [0x0274, "n"], // ɴ
+    [0x1d0f, "o"], // ᴏ
+    [0x1d18, "p"], // ᴘ
+    [0x01eb, "q"], // ǫ
+    [0x0280, "r"], // ʀ
+    [0xa731, "s"], // ꜱ
+    [0x1d1b, "t"], // ᴛ
+    [0x1d1c, "u"], // ᴜ
+    [0x1d20, "v"], // ᴠ
+    [0x1d21, "w"], // ᴡ
+    [0x028f, "y"], // ʏ
+    [0x1d22, "z"], // ᴢ
+  ]);
+
   function unicodeLetterToAscii(cp) {
     // Regional Indicator Symbols (U+1F1E6–U+1F1FF) — used in flag emoji but also a
     // homoglyph vector: they visually spell out ASCII text like IGNORE ALL PREVIOUS.
     if (cp >= 0x1f1e6 && cp <= 0x1f1ff) return cp - 0x1f1e6 + 0x41; // RIS A–Z → A–Z
+    const small = SMALL_CAPS.get(cp);
+    if (small) return small.charCodeAt(0);
     return -1;
   }
 

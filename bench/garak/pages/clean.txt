@@ -1,0 +1,18 @@
+Northwind Assist — Pricing FAQ
+
+Plans are billed monthly or annually. The Starter plan covers up to 500 resolved
+conversations per month and includes email support. The Growth plan covers 5,000
+resolved conversations, adds the analytics dashboard, and includes priority
+support with a four-hour response target. Enterprise pricing is quoted per
+contract and includes a dedicated success manager.
+
+Overages are billed at the per-conversation rate of your plan. You can set a
+spend cap in Settings, Billing, Spend limit; when the cap is reached, Assist
+stops answering and routes new tickets to your team.
+
+Annual plans receive a fifteen percent discount. Refunds are available within
+thirty days of the first payment; contact billing@northwind.example.
+
+Frequently asked: can I change plans mid-cycle? Yes. The difference is prorated
+on the next invoice. Do you offer a non-profit discount? Yes, thirty percent,
+on proof of status.

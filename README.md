@@ -34,6 +34,8 @@ Indirect prompt injection is ranked **LLM01** (the single highest risk) in the [
 
 Click the toolbar icon and Lemon Juice surfaces invisible Unicode, ASCII smuggling via the Unicode Tags block, visually hidden text, encoded blobs, control tokens, and instruction-like phrases. Findings are highlighted on the page and listed in the popup, grouped by severity.
 
+It detects **concealment and known payload shapes**; it does not classify intent. A reworded instruction can be perfectly visible to a human and still pass through — see Known misses for the measured number.
+
 **Why Firefox first?** I use it day to day. Chrome's automation-protocol tooling is more mature and most agent frameworks target it first, so a port is on the roadmap.
 
 ## What it detects
@@ -184,7 +186,7 @@ These are detectable in principle, just not implemented (or only partially imple
 
 - **Cross-element dialogue**: fabricated conversation turns split across sibling elements — each turn is a separate text node, so the turn-pair detector never sees them together.
 - **Unlisted role labels**: `Visitor:`, `Guide:`, `Guest:`, `Interviewer:`, `Q:`/`A:` — labels outside the recognized set bypass role recognition. **Partially addressed**: the structural matcher now uses `\p{L}{1,21}` so any letter-starting label (including these) is detected. A hardcoded enumeration is no longer maintained.
-- **Rephrased override language**: compound-instruction regexes match specific phrasings (`as part of your updated guidelines`) — semantic equivalents with different wording pass through.
+- **Rephrased override language**: out of scope by design, not an implementation gap. The instruction detector is a phrase list, and paraphrase is unbounded. Measured on a 24-payload axis: **12.5% recovered (3/24), none at verdict level, 0/12 on the held-out half**. See `docs/decisions/2026-10-20-paraphrase-ceiling.md`.
 - **Spaced-letter coverage is phrase-limited**: the spaced pass matches the override families written out in `SPACED_INSTRUCTION_PATTERNS` (ignore/disregard/never-say), not arbitrary spaced text. A spaced _"you are now in developer mode"_ is not collapsed and does not fire — measured at 17% on the benchmark matrix (`bench/`).
 - **Compliance flip outside regex vocabulary**: `"No problem, here is…"` avoids every word in `COMPLIANCE_FLIP_RE` (`sure|certainly|of course|understood|absolutely`).
 - **Single-turn override**: a lone `User:`-styled directive without a fabricated assistant reply — the detector requires ≥2 distinct role-labeled turns.

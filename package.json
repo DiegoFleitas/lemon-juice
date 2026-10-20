@@ -10,6 +10,7 @@
     "format": "prettier --write .",
     "test": "node --test '__tests__/**/*.test.js'",
     "bench": "node bench/run.js",
+    "bench:paraphrase": "node bench/paraphrase.js",
     "package": "mkdir -p dist && zip -r dist/lemon-juice.zip manifest.json popup.html detectors.js scan-helpers.js scan.js popup.js icons/",
     "release": "node scripts/release.js",
     "test:e2e": "playwright test"

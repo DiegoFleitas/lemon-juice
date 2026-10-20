@@ -133,6 +133,30 @@ encoding). 174 unit tests pass. The fix is a U+1D00-block fold in
 6. **Benign traffic is quiet.** 0% verdict FPR, one informational page. With 26
    pages this is a smoke test, not an estimate.
 
+## Paraphrase axis
+
+The technique matrix measures **concealment**: can the scanner see through this
+encoding? `bench/paraphrase.js` measures **phrasing**: can it recognise the
+instruction when the words change? 24 payloads, four families (lexical,
+structural, oblique, roleplay), half held out.
+
+| Signal                | Result           |
+| --------------------- | ---------------- |
+| Instruction recovered | **12.5%** (3/24) |
+| Medium+               | 0%               |
+| Verdict suspicious+   | 0%               |
+| Held-out split        | **0%** (0/12)    |
+
+The three recovered rows are near-canonical phrasings that happen to overlap the
+phrase list; every one is LOW severity and none reaches a verdict. That is a
+ceiling of phrase-list matching, not a bug: paraphrase is unbounded. The decision
+to keep it out of scope, and the conditions that would reopen it, are in
+`docs/decisions/2026-10-20-paraphrase-ceiling.md`.
+
+```
+node bench/paraphrase.js --tag=baseline
+```
+
 ## Threats to validity
 
 - 84 attack cases, 26 benign pages. Directionally useful, not statistically

@@ -11,6 +11,10 @@ pnpm-debug.log*
 .venv-garak/
 .garak-libs/
 .uvtools/
+.uv/
+.uv-cache/
+.ecoji-src/
+.tmp/
 
 # Build artifacts
 dist/

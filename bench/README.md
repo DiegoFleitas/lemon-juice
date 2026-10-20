@@ -105,9 +105,10 @@ encoding). 174 unit tests pass. The fix is a U+1D00-block fold in
 1. **Smuggling channels are the strong suit.** Tags, variation selectors,
    sneaky bits and bidi controls reach `likely-injection` on every case. That is
    the mechanism working as designed: these patterns essentially never appear in
-   legitimate prose. It is also coverage of a **known** list — the matrix
-   enumerates the techniques, so an encoding nobody has written yet is absent from
-   every number here and would score 0 by construction.
+   legitimate prose. It is also coverage of a **documented** list — the matrix is
+   drawn from the techniques this repo implements and documents, so an encoding
+   that exists only in the wild is absent from every number here and scores 0 by
+   construction.
 2. **Recognising the payload is the weak axis.** Only half the canonical
    payloads are recovered, and *none* of the paraphrases. Every paraphrase
    detection at 29% comes from the wrapper (bidi control, control token), not

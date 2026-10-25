@@ -34,7 +34,17 @@ const nodeGlobals = {
 module.exports = [
   js.configs.recommended,
   {
-    ignores: ["assets/**", "icons/**"],
+    // Generated output and local test artifacts. `dist/` holds copies of the
+    // source with a generated manifest; linting those copies would also flag
+    // browser globals the per-file config below does not cover.
+    ignores: [
+      "assets/**",
+      "icons/**",
+      "dist/**",
+      "coverage/**",
+      "test-results/**",
+      "playwright-report/**",
+    ],
   },
   {
     files: ["detectors.js"],

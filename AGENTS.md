@@ -4,7 +4,7 @@ This file provides guidance to AI coding agents (Claude Code, etc.) when working
 
 ## What this is
 
-Lemon Juice is a Firefox MV3 extension that scans the active tab for hidden
+Lemon Juice is a Firefox and Chrome MV3 extension that scans the active tab for hidden
 text and prompt-injection payloads (invisible Unicode, ASCII smuggling via the
 Unicode Tags block, bidi-control "Trojan Source" tricks, visually-hidden CSS
 text, suspicious base64 blobs, and instruction-like phrases). It's a detection
@@ -26,13 +26,13 @@ files are loaded directly by the browser as content scripts.
 ```sh
 pnpm install
 pnpm test       # node --test — runs __tests__/**/*.test.js (pure, DOM-free)
-pnpm test:e2e   # playwright test — runs __tests__/e2e/*.spec.js (browser, fixtures)
+pnpm test:e2e   # playwright test — runs __tests__/e2e/*.spec.js (Firefox and Chromium)
 pnpm lint       # eslint . && prettier --check .
 pnpm format     # prettier --write .
 ```
 
-Playwright tests require the Firefox browser binary. `pnpm install` downloads it
-automatically via `postinstall`. Manual: `pnpm exec playwright install firefox`.
+Playwright runs the e2e suite against both Firefox and Chromium, so both browser
+binaries are needed: `pnpm exec playwright install firefox chromium`.
 
 `detectors.js` and `scan-helpers.js` are under test via `node --test`; they're plain CommonJS
 (`module.exports`) with no DOM dependency, so they run directly under Node's
@@ -62,6 +62,11 @@ There's no build step. To try changes in Firefox:
    script files are cached at injection time).
 
 Temporary add-ons are removed on Firefox restart.
+
+Chrome: `pnpm run package:chrome` stages `dist/chrome`; open
+`chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and
+pick that directory. Re-run the script after editing shared source (Chrome caches
+the unpacked files the same way Firefox caches temporary add-ons).
 
 ## Architecture
 
@@ -170,7 +175,7 @@ Five files, strict separation between pure logic and DOM:
   `data-piscan-for`.
 - **`popup.js` / `popup.html`** — On popup open, injects `detectors.js` then
   `scan-helpers.js` then `scan.js` into the active tab via
-  `browser.scripting.executeScript`, reads back `window.__PIScanResult` with
+  `scripting.executeScript` through the `browser`/`chrome` namespace shim, reads back `window.__PIScanResult` with
   a follow-up call, and renders the result: a page-verdict headline
   (`verdictLine`), then findings grouped/colored by severity with a `└`
   sub-line per corroboration reason. The toolbar badge count is high+medium,
@@ -241,7 +246,9 @@ this — add to it when you add a rule.
 ## Before cutting a release
 
 - Run `pnpm lint && pnpm test && pnpm test:e2e` on a clean tree, then
-  `pnpm run package` and load the resulting zip as a temporary add-on.
+  `pnpm run package && pnpm run package:chrome && pnpm run check:packages`.
+- Load the Firefox zip as a temporary add-on and `dist/chrome` unpacked, and
+  smoke-test the popup (verdict line, badge colour, export) on both browsers.
 - If you touched `scripts/release.js` or `.github/workflows/release.yml`,
   dry-run them instead of trusting them on the first real tag push.
 - Before adding a new piece of automation, check what's already configured.

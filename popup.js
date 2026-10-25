@@ -1,6 +1,9 @@
-// popup.js — Firefox (browser.* promise API).
+// popup.js — Firefox (browser.*) and Chrome (chrome.*); both expose
+// promise-returning MV3 APIs, so one namespace shim covers both browsers.
 // activeTab grants us scripting on the current tab the moment the user opens
 // this popup, so we need no host permissions in the manifest.
+
+const api = globalThis.browser ?? globalThis.chrome;
 
 const els = {
   status: document.getElementById("status"),
@@ -24,13 +27,18 @@ function setExportEnabled(enabled) {
 const clickCycles = new Map();
 
 async function activeTab() {
-  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  const [tab] = await api.tabs.query({ active: true, currentWindow: true });
   return tab;
 }
 
 async function scan() {
   const tab = await activeTab();
-  if (!tab || /^(about:|moz-extension:)/.test(tab.url || "")) {
+  if (
+    !tab ||
+    /^(about:|chrome:|chrome-extension:|moz-extension:|edge:|devtools:|view-source:)/.test(
+      tab.url || ""
+    )
+  ) {
     els.status.textContent = "Can't scan this page.";
     return;
   }
@@ -44,12 +52,12 @@ async function scan() {
   let result;
   try {
     // 1) Inject the pure detectors, then helpers, then the DOM scanner (order matters).
-    await browser.scripting.executeScript({
+    await api.scripting.executeScript({
       target: { tabId: tab.id },
       files: ["detectors.js", "scan-helpers.js", "scan.js"],
     });
     // 2) Read back the summary the scanner stashed on window.
-    const injected = await browser.scripting.executeScript({
+    const injected = await api.scripting.executeScript({
       target: { tabId: tab.id },
       func: () => window.__PIScanResult || null,
     });
@@ -74,7 +82,7 @@ async function scrollTo(targetId) {
   const tab = await activeTab();
   if (!tab) return;
   try {
-    await browser.scripting.executeScript({
+    await api.scripting.executeScript({
       target: { tabId: tab.id },
       func: (id) => {
         // Search the top document, open shadow roots, and same-origin
@@ -414,7 +422,7 @@ function downloadExport(filename, text, mime) {
 
 function extensionVersion() {
   try {
-    return browser.runtime.getManifest().version;
+    return api.runtime.getManifest().version;
   } catch {
     return "unknown";
   }
@@ -446,8 +454,8 @@ function setBadge(r, tabId) {
       : r && r.verdict === "suspicious"
         ? "#f5a623"
         : "#3b82f6";
-  browser.action.setBadgeText({ text, tabId });
-  browser.action.setBadgeBackgroundColor({ color, tabId });
+  api.action.setBadgeText({ text, tabId });
+  api.action.setBadgeBackgroundColor({ color, tabId });
 }
 
 els.rescan.addEventListener("click", scan);

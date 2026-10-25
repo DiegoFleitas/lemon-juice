@@ -36,7 +36,18 @@ jobs:
       - name: Build extension package
         run: pnpm run package
 
+      - name: Build Chrome extension package
+        run: pnpm run package:chrome
+
+      - name: Zip Chrome extension
+        run: cd dist/chrome && zip -r ../lemon-juice-chrome.zip manifest.json popup.html popup.js detectors.js scan-helpers.js scan.js icons
+
+      - name: Check packaged artifacts
+        run: pnpm run check:packages
+
       - name: Create GitHub release with asset
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         with:
-          files: dist/lemon-juice.zip
+          files: |
+            dist/lemon-juice.zip
+            dist/lemon-juice-chrome.zip

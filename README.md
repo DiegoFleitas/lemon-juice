@@ -7,6 +7,7 @@
 _Escrito con jugo de limón. The lemon is green while this is alpha. It ripens to yellow at 1.0._
 
 ![Firefox 115+](https://img.shields.io/badge/firefox-115%2B-orange)
+![Chrome (unpacked)](https://img.shields.io/badge/chrome-unpacked-yellow)
 ![Manifest V3](https://img.shields.io/badge/manifest-v3-yellow)
 ![Status: Alpha](https://img.shields.io/badge/status-alpha-orange)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](https://www.gnu.org/licenses/gpl-3.0.html)
@@ -23,7 +24,7 @@ Docs: [limitations catalogue](docs/limitations.md) • [detection model](docs/de
   <em>"Ah, yes. Written with lemon juice." — William of Baskerville, The Name of the Rose (1986)</em>
 </p>
 
-A Firefox extension that holds a web page up to the flame. It reveals hidden text and flags prompt-injection payloads before you hand the page to ChatGPT, Claude, Gemini, or a browser agent. It uses a non-invasive overlay that never rewrites the page's own styles.
+A browser extension for Firefox and Chrome that holds a web page up to the flame. It reveals hidden text and flags prompt-injection payloads before you hand the page to ChatGPT, Claude, Gemini, or a browser agent. It uses a non-invasive overlay that never rewrites the page's own styles.
 
 > [!IMPORTANT]
 > This is a detection aid, not a shield. It does not block or "clean" anything. A clean scan means "nothing obvious found," not "this page is safe." See [Limitations](#limitations).
@@ -38,7 +39,7 @@ Click the toolbar icon and Lemon Juice surfaces invisible Unicode, ASCII smuggli
 
 It detects **concealment and known payload shapes**; it does not classify intent. A reworded instruction can be perfectly visible to a human and still pass through — see [Known misses](docs/limitations.md#known-misses) for the measured number.
 
-**Why Firefox first?** I use it day to day. Chrome's automation-protocol tooling is more mature and most agent frameworks target it first, so a port is on the [roadmap](#roadmap).
+**Why Firefox first?** I use it day to day. Chrome's automation-protocol tooling is more mature and most agent frameworks target it first, so the Chrome port shipped as an unpacked build first, with the Web Store listing still on the [roadmap](#roadmap).
 
 ## What it detects
 
@@ -122,12 +123,22 @@ For unattended agents the defense has to live in the agent, not on the page — 
 
 **AMO listing:** [Lemon Juice (Alpha)](https://addons.mozilla.org/firefox/addon/lemon-juice-alpha/) is live at 0.10.0. The 1.0 release will replace the alpha listing.
 
+**Chrome (unpacked):**
+
+1. `pnpm install && pnpm run package:chrome` — stages the Chrome build in `dist/chrome`.
+2. Open `chrome://extensions` and turn on **Developer mode**.
+3. **Load unpacked** and pick `dist/chrome`.
+4. Click the Lemon Juice icon in the toolbar on any page.
+
+> [!NOTE]
+> There is no Chrome Web Store listing yet; the port ships unpacked first. The store listing is on the [roadmap](#roadmap).
+
 ## Develop
 
 ```sh
 pnpm install
 pnpm test        # unit tests (detectors.js, scan-helpers.js — pure, DOM-free)
-pnpm test:e2e    # Playwright tests against real fixtures (browser)
+pnpm test:e2e    # Playwright tests against real fixtures (Firefox and Chromium)
 pnpm lint        # eslint + prettier
 ```
 
@@ -151,7 +162,7 @@ Five files, buildless, with a strict split between pure logic and DOM:
 - `scan-helpers.js` — DOM helpers for scanning and overlay rendering.
 - `scan.js` — DOM side: walks text and comment nodes across the top document, every open shadow root and every same-origin iframe, then draws the non-invasive overlay.
 - `popup.js` / `popup.html` — injects the scripts into the active tab, renders findings, sets the badge, exports JSON/TXT.
-- `manifest.json` — MV3. `activeTab` + `scripting`, no host permissions needed.
+- `manifest.json` — MV3, shared by both browsers; the Chrome manifest is derived at package time (Gecko-only keys dropped).
 
 Injection order matters: `detectors.js` > `scan-helpers.js` > `scan.js`. Each file reads `globalThis` at the top of its IIFE. [`AGENTS.md`](AGENTS.md#architecture) has the load-bearing details: the scoring layer, the overlay invariants, and which tests to add when changing a detector.
 
@@ -187,7 +198,8 @@ Current detection-recovery numbers are in `bench/README.md`; [`docs/decisions/`]
 - [x] Recursive open shadow root and same-origin iframe scanning
 - [ ] Cross-origin iframes via `scripting.executeScript({ allFrames: true })`, with per-frame result aggregation. Firefox can reach these under `activeTab`; a Chrome build would need host permissions for cross-origin frames.
 - [ ] Opt-in auto-scan on user-configured domains (per-site host permissions, kept off by default). This changes the no-host-permissions posture, so it needs an options page and a privacy-section rewrite, not just a detector.
-- [ ] Chrome port: a `chrome.*` namespace shim, a Chromium Playwright project, a separate manifest, and a CWS listing.
+- [x] Chrome port: namespace shim, Chromium Playwright project, and `pnpm run package:chrome` packaging.
+- [ ] Chrome Web Store listing (developer account, privacy policy, review).
 - [ ] 1.0: replace the [alpha AMO listing](https://addons.mozilla.org/firefox/addon/lemon-juice-alpha/) with a stable one, and define the exit criteria for the items above.
 
 ## Credits

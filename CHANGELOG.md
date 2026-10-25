@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.7.0 - 2026-10-25
+
+- feat(detectors): decode garak encoding families (372ecff)
+
 ## v0.6.1 - 2026-10-25
 
 - fix(detectors): report unclosed model frames as incomplete (eeed611)

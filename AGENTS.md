@@ -183,7 +183,7 @@ posture is also why iframe traversal stops at `contentDocument` access
 via `scripting.executeScript({ allFrames: true })`, which would reach
 cross-origin iframes too but needs per-frame result aggregation in
 `popup.js` — not implemented; see the shadow-DOM/iframe limitations in
-README.md.
+[`docs/limitations.md`](docs/limitations.md).
 
 ## Adding a new detector
 

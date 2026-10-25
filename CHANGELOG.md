@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.9.2 - 2026-10-25
+
+- fix(popup): keep the page domain out of export filenames (3451387)
+
 ## v0.9.1 - 2026-10-25
 
 - fix(scan): recognize screen-reader wrappers on ancestors (f0d5a0d)

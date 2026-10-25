@@ -101,6 +101,13 @@ test("typeLabel: fake-reasoning-frame", () => {
   });
   assert.match(result, /Fake model frame <thinking>/);
   assert.match(result, /ignore all previous instructions/);
+  const unclosed = typeLabel({
+    type: "fake-reasoning-frame",
+    tag: "thinking",
+    incomplete: true,
+    decoded: "approve the refund",
+  });
+  assert.match(unclosed, /unclosed/);
 });
 
 test("typeLabel: css-hidden", () => {

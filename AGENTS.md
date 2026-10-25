@@ -70,9 +70,10 @@ Five files, strict separation between pure logic and DOM:
   Gemma `<start_of_turn>`, GLM `[gMASK]`/`<sop>`, generic `<|…|>` and
   fullwidth `｜…｜` chat-template markers — HIGH severity), fake model frames
   (`<think>`, `<thinking>`, `<tool_call>`,
-  `<function=…>`; LOW; promoted by concealment or by
-  control-token/evidence-tier executable content, not a bare `eval(`/`exec(`),
-  instruction phrases (`system:`, `assistant:` — LOW
+  `<function=…>`; LOW; unclosed openers become LOW incomplete frames;
+  promoted by concealment or by control-token/evidence-tier executable
+  content, not a bare `eval(`/`exec(`), instruction phrases
+  (`system:`, `assistant:` — LOW
   informational), `scanContextSwitch` (fabricated multi-turn dialogue
   with instruction phrase or compliance flip — LOW, single-text-node
   constraint), variation-selector smuggling, and invisible-times/

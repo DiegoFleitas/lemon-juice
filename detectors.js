@@ -1016,6 +1016,22 @@
 
   function scanReasoningFrames(text) {
     const findings = [];
+    const pushFrame = (name, opener, end, incomplete) => {
+      const decoded = framePayload(text, opener.end, end);
+      // A payload of only invisible characters is not a frame: it would
+      // render as an empty popup row (and defeat raw/normalized dedupe).
+      if (!decoded) return false;
+      findings.push({
+        type: "fake-reasoning-frame",
+        severity: SEVERITY.LOW,
+        index: opener.start,
+        tag: name,
+        ...(incomplete ? { incomplete: true } : {}),
+        decoded,
+      });
+      return findings.length >= MAX_FRAME_FINDINGS;
+    };
+
     for (const { name, open, close } of REASONING_TAG_PATTERNS) {
       open.lastIndex = 0;
       const events = [];
@@ -1044,18 +1060,20 @@
         // belongs to that tag, not to a frame boundary.
         if (!opener || opener.end > ev.start) continue;
         stack.pop();
-        const decoded = framePayload(text, opener.end, ev.start);
-        // A payload of only invisible characters is not a frame: it would
-        // render as an empty popup row (and defeat raw/normalized dedupe).
-        if (!decoded) continue;
-        findings.push({
-          type: "fake-reasoning-frame",
-          severity: SEVERITY.LOW,
-          index: opener.start,
-          tag: name,
-          decoded,
-        });
-        if (findings.length >= MAX_FRAME_FINDINGS) {
+        if (pushFrame(name, opener, ev.start, false)) {
+          findings.sort((a, b) => a.index - b.index);
+          return findings;
+        }
+      }
+      // Openers left on the stack never got a close. A model can still parse
+      // an opening frame tag, so report them as LOW incomplete frames instead
+      // of letting a missing closing tag bypass frame detection. Payload ends
+      // at the next unmatched opener (or end of text), keeping nested cases
+      // readable.
+      for (let i = 0; i < stack.length; i++) {
+        const opener = stack[i];
+        const end = i + 1 < stack.length ? stack[i + 1].start : text.length;
+        if (pushFrame(name, opener, end, true)) {
           findings.sort((a, b) => a.index - b.index);
           return findings;
         }

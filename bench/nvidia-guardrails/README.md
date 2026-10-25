@@ -99,10 +99,39 @@ llama-server -m <path>\gemma-3-4b-it-Q4_K_M.gguf --host 127.0.0.1 --port 9931 `
   Where-Object { $_.id -eq "ggml-org/gemma-3-4b-it-GGUF:Q4_K_M" }
 ```
 
+### Local API key (recommended)
+
+A keyed loopback router is the recommended setup, and no secret is ever committed:
+start the server with `--api-key` (or export `LLAMA_API_KEY`, which the llama.cpp
+router reads itself), then export the same value in the shell that runs the
+benchmark:
+
+```powershell
+# terminal 1 — the server enforces the key
+llama-server -m <path>\gemma-3-4b-it-Q4_K_M.gguf --host 127.0.0.1 --port 9931 `
+  --api-key $env:LLAMA_API_KEY --ctx-size 8192 --jinja `
+  --alias "ggml-org/gemma-3-4b-it-GGUF:Q4_K_M"
+
+# terminal 2 — the runner forwards LLAMA_API_KEY as the bearer token
+$env:LLAMA_API_KEY = Read-Host -MaskInput "local router API key"
+node bench/nvidia-guardrails/run.js --tag=2026-10-25-nemo-selfcheck-gemma3-4b --analyze-only --force
+```
+
+The runner strips ambient `OPENAI_API_KEY` / `NVIDIA_API_KEY` and honours only
+`LLAMA_API_KEY`, so it can never authenticate to a hosted service. `meta.json`
+records `local_api_key_configured: true|false`; the key itself is never logged,
+printed or written to any artifact. The committed raw results were recorded
+against an unauthenticated loopback router — the key changes transport, not
+decisions, so re-running against a keyed router yields the same block decisions.
+Verified on this setup: a keyed one-case run records
+`local_api_key_configured: true` with the same decision, and the same run without
+the key fails at warm-up with `[401] Invalid API Key` instead of silently
+allowing input.
+
 Do not point `config/config.yml` at an endpoint you do not own. The config is
-deliberately hard-coded to loopback, the runner removes `OPENAI_API_KEY` /
-`NVIDIA_API_KEY` from its environment and pins `NO_PROXY` for loopback, and no
-credential is used or stored anywhere in this directory.
+deliberately hard-coded to loopback, the runner pins `NO_PROXY` for loopback and
+drops hosted credentials, and no credential is committed or stored anywhere in
+this directory.
 
 ### Python environment
 

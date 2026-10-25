@@ -54,8 +54,10 @@ time.
   (976 bytes): `engine: openai`, local `base_url`, model alias, temperature 0.0,
   `max_tokens: 16`, `seed: 42`, `rails.input.flows: [self check input]`,
   `rails.dialog.single_call.enabled: false`, `lowest_temperature: 0.0`.
-- No API key, token, or hosted endpoint is configured. The only network
-  destination is the loopback llama.cpp server below.
+- No API key or hosted endpoint is configured in the committed files. The only
+  network destination is the loopback llama.cpp server below. The recorded run
+  used no key; a keyed loopback router is supported by exporting `LLAMA_API_KEY`
+  (the runner forwards it, never records it — see README "Local API key").
 
 ## Model and inference runtime
 
@@ -129,6 +131,7 @@ systems are scored on the same `text` field of the same rows.
 - Run host: Windows 11 (build 26200), AMD Ryzen 5 5600X (6 cores / 12 threads),
   CPU-only inference; Node.js 24.16.0, CPython 3.13.0. Latency numbers are for
   this host and this configuration only.
-- No secrets: no API keys, tokens, credentials, or personal data are needed or
-  committed. The only host referenced is `127.0.0.1`. No NVIDIA-hosted endpoint
-  was contacted for these results.
+- No secrets are committed: no API keys, tokens, credentials, or personal data
+  appear in any artifact. A keyed local router is optional (env `LLAMA_API_KEY`,
+  never written to files); the recorded run used none. The only host referenced
+  is `127.0.0.1`. No NVIDIA-hosted endpoint was contacted for these results.

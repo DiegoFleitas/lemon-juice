@@ -47,10 +47,17 @@ os.environ["no_proxy"] = "127.0.0.1,localhost,::1"
 # 2) NeMo Guardrails 0.24.1 reports anonymous usage stats to NVIDIA unless this
 #    is set. The bench must not make any network call other than the local LLM.
 os.environ["NEMO_GUARDRAILS_NO_USAGE_STATS"] = "1"
-# 3) The local OpenAI-compatible router needs no credential; drop any ambient
-#    key so no Authorization header is ever built.
+# 3) Local router authentication. If the operator started llama.cpp with
+#    --api-key (recommended, see README), export the same key as LLAMA_API_KEY
+#    and it is forwarded as the OpenAI-compatible bearer token. Only this
+#    local-specific variable is honoured; ambient OpenAI/NVIDIA keys are dropped
+#    so the runner can never authenticate to a hosted service. The key is never
+#    logged or written to results.
+LOCAL_API_KEY = os.environ.get("LLAMA_API_KEY", "").strip()
 for _key_var in ("OPENAI_API_KEY", "NVIDIA_API_KEY"):
     os.environ.pop(_key_var, None)
+if LOCAL_API_KEY:
+    os.environ["OPENAI_API_KEY"] = LOCAL_API_KEY
 
 from nemoguardrails import LLMRails, RailsConfig  # noqa: E402
 
@@ -71,7 +78,7 @@ DEFAULT_INPUTS = BENCH_DIR / "inputs" / "inputs.jsonl"
 DEFAULT_OUT_DIR = BENCH_DIR / "results" / "raw" / "2026-10-25-nemo-selfcheck-gemma3-4b"
 MANIFEST_PATH = BENCH_DIR / "inputs" / "manifest.json"
 
-RUNNER_VERSION = "1.0.1"
+RUNNER_VERSION = "1.0.2"
 MODEL_ID = "ggml-org/gemma-3-4b-it-GGUF:Q4_K_M"
 ENGINE = "openai"
 BASE_URL = "http://127.0.0.1:9931"  # local llama.cpp router only
@@ -299,8 +306,14 @@ def build_meta(tag, inputs_path, out_dir, inputs, rows, config_sha, prompts_sha,
         "model": MODEL_ID,
         "base_url_note": (
             "http://127.0.0.1:9931 (local llama.cpp OpenAI-compatible router); "
-            "no hosted/network endpoint was called and no credential was used"
+            "no hosted/network endpoint was called"
+            + (
+                "; the local bearer key from LLAMA_API_KEY was used"
+                if LOCAL_API_KEY
+                else "; no credential was used"
+            )
         ),
+        "local_api_key_configured": bool(LOCAL_API_KEY),
         "telemetry_note": "NeMo Guardrails usage reporting disabled (NEMO_GUARDRAILS_NO_USAGE_STATS=1)",
         "config_dir": rel(CONFIG_DIR),
         "inputs_path": rel(inputs_path),

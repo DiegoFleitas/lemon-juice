@@ -421,7 +421,16 @@
   function scanSubstitution(text, map, type) {
     const decoded = applySubstitution(text, map);
     if (decoded === text) return [];
-    const hits = [...scanInstructions(decoded), ...scanControlTokens(decoded)];
+    const hits = [
+      ...scanInstructions(decoded),
+      // A generic token shape is too weak once transformed: plaintext like
+      // "<|marker|> tokens" becomes "<|nzipvi|> glpvmh" under Atbash and would
+      // otherwise read as a hidden control token. Only known markers and
+      // instruction phrases count here.
+      ...scanControlTokens(decoded).filter(
+        (f) => f.pattern !== GENERIC_CONTROL_TOKEN.source
+      ),
+    ];
     // Templates often put the encoded payload after a plaintext label, so a
     // role label inside the decoded payload is not line-anchored. It is still
     // role syntax once decoded; accept it here, where the page-level pattern

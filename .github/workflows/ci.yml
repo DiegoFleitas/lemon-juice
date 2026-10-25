@@ -40,6 +40,9 @@ jobs:
       - name: Build Chrome extension package
         run: pnpm run package:chrome
 
+      - name: Check packaged artifacts
+        run: pnpm run check:packages
+
   e2e:
     runs-on: ubuntu-latest
     permissions:

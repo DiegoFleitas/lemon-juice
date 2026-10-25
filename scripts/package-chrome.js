@@ -4,9 +4,9 @@
 // source files plus a manifest derived from manifest.json. Keeping one source
 // manifest means the two browsers cannot drift on permissions, CSP or version.
 //
-// Chrome ignores unknown top-level keys and does not understand the Gecko-only
-// browser_specific_settings block, so that block is dropped. The description is
-// replaced because manifest.json describes the Firefox build.
+// Chrome does not understand the Gecko-only browser_specific_settings block, so
+// that block is dropped. The description is replaced because manifest.json
+// describes the Firefox build.
 const fs = require("fs");
 const path = require("path");
 
@@ -36,16 +36,22 @@ function chromeManifest() {
   return manifest;
 }
 
-fs.rmSync(OUT, { recursive: true, force: true });
-fs.mkdirSync(OUT, { recursive: true });
-fs.writeFileSync(
-  path.join(OUT, "manifest.json"),
-  JSON.stringify(chromeManifest(), null, 2) + "\n"
-);
-for (const file of FILES) fs.copyFileSync(path.join(ROOT, file), path.join(OUT, file));
-for (const dir of DIRS) copyDir(path.join(ROOT, dir), path.join(OUT, dir));
+function main() {
+  fs.rmSync(OUT, { recursive: true, force: true });
+  fs.mkdirSync(OUT, { recursive: true });
+  fs.writeFileSync(
+    path.join(OUT, "manifest.json"),
+    JSON.stringify(chromeManifest(), null, 2) + "\n"
+  );
+  for (const file of FILES) fs.copyFileSync(path.join(ROOT, file), path.join(OUT, file));
+  for (const dir of DIRS) copyDir(path.join(ROOT, dir), path.join(OUT, dir));
 
-console.log(`Chrome extension staged at ${path.relative(ROOT, OUT)}`);
-console.log(
-  "Load it unpacked from chrome://extensions, or zip that directory for the Chrome Web Store."
-);
+  console.log(`Chrome extension staged at ${path.relative(ROOT, OUT)}`);
+  console.log(
+    "Load it unpacked from chrome://extensions, or zip that directory for the Chrome Web Store."
+  );
+}
+
+module.exports = { CHROME_DESCRIPTION, DIRS, FILES, chromeManifest, copyDir, main };
+
+if (require.main === module) main();

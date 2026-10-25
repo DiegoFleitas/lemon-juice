@@ -246,9 +246,9 @@ this — add to it when you add a rule.
 ## Before cutting a release
 
 - Run `pnpm lint && pnpm test && pnpm test:e2e` on a clean tree, then
-  `pnpm run package` and load the resulting zip as a temporary add-on.
-- Run `pnpm run package:chrome`, load `dist/chrome` unpacked, and smoke-test
-  the popup (verdict line, badge colour, export) on Chrome before releasing.
+  `pnpm run package && pnpm run package:chrome && pnpm run check:packages`.
+- Load the Firefox zip as a temporary add-on and `dist/chrome` unpacked, and
+  smoke-test the popup (verdict line, badge colour, export) on both browsers.
 - If you touched `scripts/release.js` or `.github/workflows/release.yml`,
   dry-run them instead of trusting them on the first real tag push.
 - Before adding a new piece of automation, check what's already configured.

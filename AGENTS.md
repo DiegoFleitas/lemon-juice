@@ -14,6 +14,13 @@ sanitize anything, and it makes no network calls.
 Buildless: plain ES, no bundler, no transpile step, no framework. The source
 files are loaded directly by the browser as content scripts.
 
+## Where the docs live
+
+- `docs/decisions/` — current design decisions; update the record when a rule or limit is accepted.
+- `docs/plans/` — historical implementation plans, each with a `**Status:**` header. Read them for rationale, not as current state.
+- `docs/limitations.md`, `docs/detection-model.md`, `docs/security-review-notes.md` — reference docs linked from the README.
+- `bench/README.md` — how detection is measured.
+
 ## Commands
 
 ```sh

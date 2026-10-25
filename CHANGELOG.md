@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.8.1 - 2026-10-25
+
+- fix(detectors): ignore generic tokens in ROT13/Atbash decode (76376b3)
+
 ## v0.8.0 - 2026-10-25
 
 - fix(garak): strip page HTML with HTMLParser (de7bc28)

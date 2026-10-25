@@ -27,11 +27,11 @@ Usage:
 import argparse
 import json
 import os
-import re
 import sys
 import threading
 import time
 import urllib.request
+from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 DEFAULTS = {
@@ -196,11 +196,33 @@ class Handler(BaseHTTPRequestHandler):
         )
 
 
+class _PageTextExtractor(HTMLParser):
+    """Collect visible page text, skipping script and style bodies."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts = []
+        self.skip = 0
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ("script", "style"):
+            self.skip += 1
+
+    def handle_endtag(self, tag):
+        if tag in ("script", "style") and self.skip:
+            self.skip -= 1
+
+    def handle_data(self, data):
+        if not self.skip:
+            self.parts.append(data)
+
+
 def strip_html(raw):
-    """Drop script/style bodies and HTML tags from a page before it reaches the model."""
-    raw = re.sub(r"<script\b[^>]*>.*?</script\s*>", " ", raw, flags=re.S | re.I)
-    raw = re.sub(r"<style\b[^>]*>.*?</style\s*>", " ", raw, flags=re.S | re.I)
-    return re.sub(r"<[^>]+>", " ", raw)
+    """Return page text with script/style bodies and HTML tags removed."""
+    parser = _PageTextExtractor()
+    parser.feed(raw)
+    parser.close()
+    return " ".join(parser.parts)
 
 
 def serve(args):

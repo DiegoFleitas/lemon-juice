@@ -16,7 +16,7 @@ _Escrito con jugo de limón. The lemon is green while this is alpha. It ripens t
 </div>
 
 <p align="center">
-  <img src="assets/screenshot-04.png" width="600" alt="Lemon Juice scanning a page: hidden text highlighted on the left, results in the popup on the right">
+  <img src="assets/screenshot-04.webp" width="600" alt="Lemon Juice scanning a page: hidden text highlighted on the left, results in the popup on the right">
   <br>
   <em>"Ah, yes. Written with lemon juice." — William of Baskerville, The Name of the Rose (1986)</em>
 </p>
@@ -26,7 +26,7 @@ A Firefox extension that holds a web page up to the flame. It reveals hidden tex
 > [!IMPORTANT]
 > This is a detection aid, not a shield. It does not block or "clean" anything. A clean scan means "nothing obvious found," not "this page is safe." See [Limitations](#limitations).
 
-![Lemon Juice scanning a page: highlighted hidden text on the left, results panel on the right](assets/lemon-juice.png)
+![Lemon Juice scanning a page: highlighted hidden text on the left, results panel on the right](assets/lemon-juice.webp)
 
 ## Why
 

@@ -1,0 +1,29 @@
+# NeMo Guardrails 0.24.1 -- "self check input" rail for the nvidia-guardrails bench.
+#
+# Everything is served by a local llama.cpp OpenAI-compatible router at
+# http://127.0.0.1:9931. No hosted endpoint is used, no API key is required
+# (and none is configured here).
+models:
+  - type: main
+    engine: openai
+    model: ggml-org/gemma-3-4b-it-GGUF:Q4_K_M
+    parameters:
+      base_url: http://127.0.0.1:9931
+      temperature: 0.0
+      max_tokens: 16
+      # Extra llama.cpp request-body field (OpenAI-compatible extra param);
+      # NeMo passes model `parameters` through to the completion payload.
+      seed: 42
+
+rails:
+  input:
+    flows:
+      - self check input
+  dialog:
+    single_call:
+      enabled: false
+
+# The self-check action deliberately overrides the model temperature with the
+# config `lowest_temperature` (NeMo 0.24.1 default: 0.001). Pin it to 0.0 so the
+# judge actually runs greedy, matching the temperature requested above.
+lowest_temperature: 0.0

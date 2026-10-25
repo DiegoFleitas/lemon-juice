@@ -105,8 +105,18 @@
   ];
 
   function elementIsA11yHidden(el) {
-    if (el.getAttribute("aria-hidden") === "true") return true;
-    return A11Y_HIDDEN_CLASSES.some((c) => el.classList.contains(c));
+    // Check ancestors too: framework helpers usually put sr-only/aria-hidden on
+    // a wrapper, while the text node's parent is an inner span. GitHub, for
+    // example, nests shortcut labels inside an sr-only heading.
+    for (let node = el; node;) {
+      if (node.nodeType === 1) {
+        if (node.getAttribute("aria-hidden") === "true") return true;
+        if (A11Y_HIDDEN_CLASSES.some((c) => node.classList.contains(c))) return true;
+      }
+      const root = node.getRootNode?.();
+      node = root?.host || node.parentElement;
+    }
+    return false;
   }
 
   function elementHidesText(el) {

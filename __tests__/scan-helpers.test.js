@@ -101,6 +101,7 @@ test("isTransparentBg: opaque colors return false", () => {
 function stubEl(className, ariaHidden) {
   const classes = className ? className.split(" ") : [];
   return {
+    nodeType: 1,
     getAttribute: (name) => (name === "aria-hidden" ? (ariaHidden ?? null) : null),
     classList: { contains: (c) => classes.includes(c) },
   };
@@ -130,4 +131,21 @@ test("elementIsA11yHidden: framework screen-reader-only classes", () => {
 
 test("elementIsA11yHidden: ordinary classes are not a11y-hidden", () => {
   assert.equal(elementIsA11yHidden(stubEl("container prose")), false);
+});
+
+test("elementIsA11yHidden: checks ancestor wrappers", () => {
+  const wrapper = stubEl("sr-only");
+  const inner = stubEl("");
+  inner.parentElement = wrapper;
+  assert.equal(elementIsA11yHidden(inner), true);
+
+  const ariaWrapper = stubEl("", "true");
+  const inner2 = stubEl("");
+  inner2.parentElement = ariaWrapper;
+  assert.equal(elementIsA11yHidden(inner2), true);
+
+  const ordinary = stubEl("container");
+  const inner3 = stubEl("");
+  inner3.parentElement = ordinary;
+  assert.equal(elementIsA11yHidden(inner3), false);
 });

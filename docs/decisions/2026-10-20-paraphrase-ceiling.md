@@ -71,3 +71,14 @@ Revisit if **any** of these becomes true:
 - `bench/README.md` carries the axis beside the technique matrix.
 - The public claim is "concealment and known payload shapes", not "detects
   prompt injection".
+
+## Update 2026-10-25
+
+The guardrail escape analysis added five _structural payload shapes_ (exfiltration
+with a destination, extraction grammar, continuation-of-instructions, a bare
+second-person override, a credential imperative) plus generic spaced-token
+collapsing. Re-measured paraphrase axis: **29.2% recovered (7/24), dev 50%,
+held-out 8.3%, still 0% medium+/verdict** — see
+`docs/decisions/2026-10-25-detection-strengthening.md`. The held-out half stayed
+near zero, so reopening condition 1 (≥40% held-out recall) is **not** met and this
+decision stands: the additions cover named shapes, not paraphrase as a class.

@@ -771,6 +771,30 @@
     // disregard/forget/override patterns above are collapsed by scanInstructions'
     // overlap dedup, so one phrase reports once.
     /\b(?:skip|bypass|discard|forget|ignore|disregard|override)\s+(?:all\s+)?(?:the\s+)?(?:your\s+)?(?:previous|prior|earlier|above|current|default|initial|original)\s+(?:\w+\s+){0,2}?(?:instructions?|directions?|context|guidelines?|rules?|training|restrictions?|constraints?|safety)\b/i,
+
+    // --- Structural payload shapes, not new phrasings ---
+    // Exfiltration with an explicit destination: verb + conversation object +
+    // an http(s) or www. destination. The destination is the discriminator, so a
+    // docs sentence like "send the conversation history to your backend" (no
+    // URL) does not fire; requiring an explicit URL also keeps email recipients
+    // out, including when the deobfuscation pass folds "@" to "a". LOW like every
+    // other instruction phrase: informational.
+    /\b(?:send|post|upload|forward|email|leak|exfiltrate|transmit)\b[^\n]{0,60}\b(?:conversation|chat|transcript|history|prompt|context|memory)\b[^\n]{0,40}\bto\s+(?:https?:\/\/|www\.)/i,
+    // Extraction grammar: "repeat everything above verbatim". The existing probe
+    // only accepted "the text/words above"; this is the same probe with its
+    // grammar generalised, not a new phrase family.
+    /\brepeat\s+(?:everything|all(?:\s+(?:of\s+)?(?:the\s+)?(?:text|content))?|(?:the\s+)?(?:text|words?|instructions?))\s+(?:above|so\s+far)\s+verbatim\b/i,
+    // Instruction continuation: "then follow the new instructions".
+    /\bthen\s+follow\s+the\s+(?:new|updated|revised)\s+(?:instructions?|rules?|guidelines?)\b/i,
+    // Bare second-person override: "disregard your guidelines". The existing
+    // disregard patterns require a prior-state modifier; addressing the
+    // assistant's own guidelines is the same override shape as the pattern
+    // above, so it is treated the same way (LOW, never convicting alone).
+    /\b(?:disregard|ignore|drop)\s+(?:your|the\s+assistant's)\s+(?:guidelines|rules|safety|restrictions|instructions)\b/i,
+    // Credential-access imperative: "print the admin password". The determiner
+    // is required so the common UI label "Show password" cannot fire; the
+    // determiner form ("Show the password") still fires as one LOW finding.
+    /\b(?:reveal|print|show|output|dump|give|send)\s+(?:me\s+)?the\s+(?:(?:admin|root|database|db|user)\s+)?(?:password|passphrase|credentials?|api[-\s]?key|secret)\b/i,
   ];
 
   // Spaced-letter patterns (e.g. "i g n o r e") run as a separate pass in
@@ -1568,6 +1592,51 @@
     return { text: out, indexMap };
   }
 
+  // --- Generic spaced-token collapse ---
+  // `y o u  a r e  n o w` renders as words but never matches a whole-word
+  // instruction pattern. Runs of single printable-ASCII characters separated by
+  // exactly one space collapse to the text they spell; 2+ spaces survive as word
+  // boundaries, so `y o u  a r e` becomes `you are` and
+  // `h t t p s : / / e x a m p l e . c o m` becomes a real URL. A phrase spaced
+  // with a single space *everywhere* has no recoverable boundary and collapses to
+  // one blob — SPACED_INSTRUCTION_PATTERNS still covers the three override
+  // families written that way, so behaviour there is unchanged.
+  //
+  // Bounded on purpose: only single printable-ASCII characters separated by
+  // ASCII single spaces are touched, and a run needs at least two tokens. Tabs,
+  // NBSP, emoji and non-ASCII scripts are left alone, so ordinary prose is
+  // untouched.
+  const SPACED_TOKEN_RUN = /(?<![\x21-\x7e])[\x21-\x7e](?: [\x21-\x7e])+(?![\x21-\x7e])/g;
+
+  function collapseSpacedTokens(text) {
+    // Fast path: most text has no single-character spaced run. Testing first
+    // avoids building an O(n) identity indexMap on every clean page.
+    SPACED_TOKEN_RUN.lastIndex = 0;
+    if (!SPACED_TOKEN_RUN.test(text)) return { text, indexMap: null, spans: [] };
+    let out = "";
+    const indexMap = [];
+    const spans = [];
+    let last = 0;
+    SPACED_TOKEN_RUN.lastIndex = 0;
+    let m;
+    while ((m = SPACED_TOKEN_RUN.exec(text)) !== null) {
+      const start = m.index;
+      const run = m[0];
+      out += text.slice(last, start);
+      for (let k = last; k < start; k++) indexMap.push(k);
+      // Tokens sit at offsets 0, 2, 4, … inside the run; drop the odd spaces.
+      for (let n = 0; n < run.length; n += 2) {
+        out += run[n];
+        indexMap.push(start + n);
+      }
+      spans.push([start, start + run.length]);
+      last = start + run.length;
+    }
+    out += text.slice(last);
+    for (let k = last; k < text.length; k++) indexMap.push(k);
+    return { text: out, indexMap, spans };
+  }
+
   // --- corroboration --------------------------------------------------------
 
   // Depth-1 only, structurally: the five scanners below never themselves
@@ -1923,12 +1992,39 @@
         }));
     }
 
+    // Spaced-letter collapse, composed AFTER deobfuscation so styled,
+    // leetspeak or homoglyph letters are already ASCII before the spaces are
+    // removed. This generalises the old three-pattern pass: any instruction
+    // phrase whose words are separated by 2+ spaces becomes readable once its
+    // letters are rejoined, not just the ignore/disregard/never-say families.
+    let spacedCollapsedOnly = [];
+    const collapsed = collapseSpacedTokens(deobfText);
+    if (collapsed.text !== deobfText) {
+      const seen = new Set([
+        ...rawContent.map(contentFindingKey),
+        ...normalizedOnly.map(contentFindingKey),
+        ...deobfuscatedOnly.map(contentFindingKey),
+      ]);
+      const mapBack = (i) => {
+        const deobfIndex = collapsed.indexMap[i];
+        return deobfIndexMap[deobfIndex] !== undefined
+          ? deobfIndexMap[deobfIndex]
+          : text.length;
+      };
+      spacedCollapsedOnly = [
+        ...scanInstructions(collapsed.text),
+        ...scanContextSwitch(collapsed.text),
+      ]
+        .filter((f) => !seen.has(contentFindingKey(f)))
+        .map((f) => ({ ...f, index: mapBack(f.index), normalized: true }));
+    }
+
     // Spaced-letter pass: run SPACED_INSTRUCTION_PATTERNS against raw text AND
-    // deobfuscated text. NFKC-foldable styled letters (double-struck, math-bold,
-    // fullwidth, etc.) in the raw text don't match the pattern's [a-z], but the
-    // deobfuscation pass folds them to ASCII then preserves the spacing — so
-    // spaced + styled slips this pass but not the deobf version. The existing
-    // spacedSeen set dedups both sources.
+    // deobfuscated text. These hand-written patterns remain only for payloads
+    // spaced with a single space *everywhere* (no 2+ space word boundary), where
+    // the collapse above cannot recover the words; they cover the three override
+    // families. NFKC-foldable styled letters are folded by normalizeDeobfuscated
+    // first, so the deobf source is the one that usually matches.
     let spacedOnly = [];
     const spacedSeen = new Set([
       ...rawContent.map(contentFindingKey),
@@ -1961,6 +2057,14 @@
         }
       }
     }
+    // The collapsed pass subsumes the hand-written patterns for every payload
+    // whose words are separated by 2+ spaces. Drop the duplicate when both
+    // fired at the same offset: instruction-phrase dedup is keyed on `pattern`,
+    // so two different patterns would otherwise double-count one phrase as two
+    // corroborating findings and push the verdict up a tier on their own.
+    spacedOnly = spacedOnly.filter(
+      (f) => !spacedCollapsedOnly.some((g) => Math.abs(g.index - f.index) <= 2)
+    );
 
     return scanDecodedPayloads([
       ...invisible,
@@ -1971,6 +2075,7 @@
       ...rawContent,
       ...normalizedOnly,
       ...deobfuscatedOnly,
+      ...spacedCollapsedOnly,
       ...spacedOnly,
     ]).map(promoteSeverity);
   }
@@ -2014,6 +2119,7 @@
     corroborationCount,
     hasMixedScript,
     normalizeDeobfuscated,
+    collapseSpacedTokens,
     unicodeLetterToAscii,
     worstSeverity,
     isTagChar,

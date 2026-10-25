@@ -32,3 +32,8 @@ __tests__/fixtures-out-of-scope/
 Thumbs.db
 .vscode/
 .idea/
+
+# Python bytecode (generated, never committed)
+__pycache__/
+*.pyc
+

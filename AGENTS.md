@@ -29,6 +29,7 @@ pnpm test       # node --test — runs __tests__/**/*.test.js (pure, DOM-free)
 pnpm test:e2e   # playwright test — runs __tests__/e2e/*.spec.js (Firefox and Chromium)
 pnpm lint       # eslint . && prettier --check .
 pnpm format     # prettier --write .
+pnpm run lint:extension  # web-ext lint on dist/firefox (after `pnpm run package`)
 ```
 
 Playwright runs the e2e suite against both Firefox and Chromium, so both browser
@@ -246,7 +247,7 @@ this — add to it when you add a rule.
 ## Before cutting a release
 
 - Run `pnpm lint && pnpm test && pnpm test:e2e` on a clean tree, then
-  `pnpm run package && pnpm run package:chrome && pnpm run check:packages`.
+  `pnpm run package && pnpm run lint:extension && pnpm run package:chrome && pnpm run check:packages`.
 - Load the Firefox zip as a temporary add-on and `dist/chrome` unpacked, and
   smoke-test the popup (verdict line, badge colour, export) on both browsers.
 - If you touched `scripts/release.js` or `.github/workflows/release.yml`,

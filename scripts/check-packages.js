@@ -1,46 +1,31 @@
 "use strict";
 
 // Verifies the packaged artifacts instead of trusting the packaging scripts:
-// one version across package.json/manifest.json, the derived Chrome manifest
-// matching what the source manifest says, and exact file sets in both the
-// Chrome staging directory and the Firefox zip. Run after both package steps.
+// one version across package.json/manifest.json, each staged build matching the
+// manifest it was derived from, and exact file sets in dist/firefox, dist/chrome
+// and the Firefox zip. Run after the package steps.
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { DIRS, FILES, chromeManifest } = require("./package-chrome.js");
+const packaging = require("./packaging.js");
 
-const ROOT = path.resolve(__dirname, "..");
+const ROOT = packaging.ROOT;
 const DIST = path.join(ROOT, "dist");
-const CHROME_DIR = path.join(DIST, "chrome");
+const FIREFOX_DIR = path.join(DIST, "firefox");
 const FIREFOX_ZIP = path.join(DIST, "lemon-juice.zip");
+const CHROME_DIR = path.join(DIST, "chrome");
 
 const failures = [];
 const check = (ok, message) => {
   if (!ok) failures.push(message);
 };
 
-function readJson(file) {
-  return JSON.parse(fs.readFileSync(file, "utf8"));
-}
-
-function walk(dir) {
-  const files = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const abs = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      for (const child of walk(abs)) files.push(`${entry.name}/${child}`);
-    } else {
-      files.push(entry.name);
-    }
-  }
-  return files;
-}
-
 function expectedFiles() {
-  const files = ["manifest.json", ...FILES];
-  for (const dir of DIRS) {
-    for (const child of walk(path.join(ROOT, dir))) files.push(`${dir}/${child}`);
+  const files = ["manifest.json", ...packaging.FILES];
+  for (const dir of packaging.DIRS) {
+    for (const child of packaging.walk(path.join(ROOT, dir)))
+      files.push(`${dir}/${child}`);
   }
   return files.sort();
 }
@@ -52,6 +37,15 @@ function difference(expected, actual) {
     missing: expected.filter((file) => !have.has(file)),
     unexpected: actual.filter((file) => !want.has(file)),
   };
+}
+
+function compareFiles(label, actual) {
+  const { missing, unexpected } = difference(expectedFiles(), actual.slice().sort());
+  check(missing.length === 0, `${label} is missing: ${missing.join(", ")}`);
+  check(
+    unexpected.length === 0,
+    `${label} has unexpected files: ${unexpected.join(", ")}`
+  );
 }
 
 // Minimal central-directory reader; listing names needs no decompression.
@@ -82,8 +76,8 @@ function readZipEntries(file) {
 }
 
 // 1. One version everywhere.
-const pkg = readJson(path.join(ROOT, "package.json"));
-const sourceManifest = readJson(path.join(ROOT, "manifest.json"));
+const pkg = packaging.readJson(path.join(ROOT, "package.json"));
+const sourceManifest = packaging.readJson(path.join(ROOT, "manifest.json"));
 check(
   sourceManifest.version === pkg.version,
   `version drift: manifest.json ${sourceManifest.version} vs package.json ${pkg.version}`
@@ -93,15 +87,28 @@ check(
   `package.json version is not X.Y.Z: ${pkg.version}`
 );
 
-// 2. Chrome staging matches the derived manifest and carries exactly the source files.
+// 2. Firefox staging is the source manifest plus exactly the source files.
+if (!fs.existsSync(path.join(FIREFOX_DIR, "manifest.json"))) {
+  failures.push("dist/firefox/manifest.json missing - run `pnpm run package` first");
+} else {
+  const staged = packaging.readJson(path.join(FIREFOX_DIR, "manifest.json"));
+  try {
+    assert.deepEqual(staged, sourceManifest);
+  } catch {
+    failures.push("dist/firefox/manifest.json no longer matches manifest.json");
+  }
+  compareFiles("dist/firefox", packaging.walk(FIREFOX_DIR));
+}
+
+// 3. Chrome staging matches the derived manifest and carries exactly the source files.
 if (!fs.existsSync(path.join(CHROME_DIR, "manifest.json"))) {
   failures.push(
     "dist/chrome/manifest.json missing - run `pnpm run package:chrome` first"
   );
 } else {
-  const staged = readJson(path.join(CHROME_DIR, "manifest.json"));
+  const staged = packaging.readJson(path.join(CHROME_DIR, "manifest.json"));
   try {
-    assert.deepEqual(staged, chromeManifest());
+    assert.deepEqual(staged, packaging.chromeManifest());
   } catch {
     failures.push(
       "dist/chrome/manifest.json no longer matches the manifest derived from manifest.json"
@@ -123,32 +130,20 @@ if (!fs.existsSync(path.join(CHROME_DIR, "manifest.json"))) {
     staged.version === sourceManifest.version,
     "Chrome manifest version differs from the source manifest"
   );
-  const { missing, unexpected } = difference(expectedFiles(), walk(CHROME_DIR).sort());
-  check(missing.length === 0, `dist/chrome is missing: ${missing.join(", ")}`);
-  check(
-    unexpected.length === 0,
-    `dist/chrome has unexpected files: ${unexpected.join(", ")}`
-  );
+  compareFiles("dist/chrome", packaging.walk(CHROME_DIR));
 }
 
-// 3. Firefox zip carries exactly the source files.
+// 4. Firefox zip carries exactly the same file set.
 if (!fs.existsSync(FIREFOX_ZIP)) {
   failures.push("dist/lemon-juice.zip missing - run `pnpm run package` first");
 } else {
   let entries = [];
   try {
-    entries = readZipEntries(FIREFOX_ZIP).sort();
+    entries = readZipEntries(FIREFOX_ZIP);
   } catch (error) {
     failures.push(error.message);
   }
-  if (entries.length) {
-    const { missing, unexpected } = difference(expectedFiles(), entries);
-    check(missing.length === 0, `lemon-juice.zip is missing: ${missing.join(", ")}`);
-    check(
-      unexpected.length === 0,
-      `lemon-juice.zip has unexpected files: ${unexpected.join(", ")}`
-    );
-  }
+  if (entries.length) compareFiles("lemon-juice.zip", entries);
 }
 
 if (failures.length) {
@@ -157,5 +152,5 @@ if (failures.length) {
   process.exit(1);
 }
 console.log(
-  "Packaging checks passed: version sync, Chrome manifest, Chrome staging, Firefox zip."
+  "Packaging checks passed: version sync, staged manifests, file sets, Firefox zip."
 );

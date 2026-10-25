@@ -1,5 +1,7 @@
 # Code-Execution / Sandbox-Escape Detectors Plan
 
+**Status:** Implemented (2026-07-25). `scanCodeExecution` and `scanReverseShell` ship in `detectors.js` with unit tests; the task checkboxes below were not ticked when the work landed.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a `scanCodeExecution` detector for Python RCE, sandbox-escape, and reverse-shell patterns (5+ rows from the attack-coverage table not covered by any existing scanner).

@@ -2,6 +2,7 @@ node_modules
 assets
 icons
 *.png
+pnpm-lock.yaml
 
 # generated benchmark output
 bench/results

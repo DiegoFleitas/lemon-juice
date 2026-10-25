@@ -13,6 +13,7 @@
     "bench:garak": "node bench/garak.js",
     "bench:paraphrase": "node bench/paraphrase.js",
     "package": "mkdir -p dist && zip -r dist/lemon-juice.zip manifest.json popup.html detectors.js scan-helpers.js scan.js popup.js icons/",
+    "package:chrome": "node scripts/package-chrome.js",
     "release": "node scripts/release.js",
     "test:e2e": "playwright test"
   },

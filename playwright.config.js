@@ -4,7 +4,8 @@ const { defineConfig } = require("@playwright/test");
 
 module.exports = defineConfig({
   testMatch: "**/__tests__/e2e/**/*.spec.js",
-  use: {
-    browserName: "firefox",
-  },
+  projects: [
+    { name: "firefox", use: { browserName: "firefox" } },
+    { name: "chromium", use: { browserName: "chromium" } },
+  ],
 });

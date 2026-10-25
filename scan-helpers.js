@@ -103,6 +103,17 @@
     "assistive-text", // WordPress (older)
     "hidden-visually",
   ];
+  // CSS-module frameworks hash the suffix, e.g.
+  // GitHub's "prc-src-InternalVisuallyHidden-2YaI6".
+  const A11Y_HIDDEN_CLASS_RE =
+    /sr-only|visually-?hidden|screen-reader-text|element-invisible|a11y-hidden|assistive-text|hidden-visually/i;
+
+  function isA11yClass(node) {
+    if (A11Y_HIDDEN_CLASSES.some((c) => node.classList.contains(c))) return true;
+    return (
+      typeof node.className === "string" && A11Y_HIDDEN_CLASS_RE.test(node.className)
+    );
+  }
 
   function elementIsA11yHidden(el) {
     // Check ancestors too: framework helpers usually put sr-only/aria-hidden on
@@ -111,7 +122,7 @@
     for (let node = el; node;) {
       if (node.nodeType === 1) {
         if (node.getAttribute("aria-hidden") === "true") return true;
-        if (A11Y_HIDDEN_CLASSES.some((c) => node.classList.contains(c))) return true;
+        if (isA11yClass(node)) return true;
       }
       const root = node.getRootNode?.();
       node = root?.host || node.parentElement;

@@ -102,6 +102,7 @@ function stubEl(className, ariaHidden) {
   const classes = className ? className.split(" ") : [];
   return {
     nodeType: 1,
+    className: className || "",
     getAttribute: (name) => (name === "aria-hidden" ? (ariaHidden ?? null) : null),
     classList: { contains: (c) => classes.includes(c) },
   };
@@ -131,6 +132,11 @@ test("elementIsA11yHidden: framework screen-reader-only classes", () => {
 
 test("elementIsA11yHidden: ordinary classes are not a11y-hidden", () => {
   assert.equal(elementIsA11yHidden(stubEl("container prose")), false);
+});
+
+test("elementIsA11yHidden: hashed CSS-module visually-hidden classes", () => {
+  // GitHub's class is prc-src-InternalVisuallyHidden-2YaI6.
+  assert.equal(elementIsA11yHidden(stubEl("prc-src-InternalVisuallyHidden-2YaI6")), true);
 });
 
 test("elementIsA11yHidden: checks ancestor wrappers", () => {

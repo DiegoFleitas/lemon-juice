@@ -65,7 +65,8 @@ Five files, strict separation between pure logic and DOM:
   `globalThis.PIScanner` at the bottom of the IIFE. The scan functions are
   aggregated by `scanText()` (grep `function scanText`): invisible
   characters/control codes + Unicode-Tags ASCII smuggling reassembly,
-  base64 runs, percent-encoded runs, hex-escape runs, space-delimited hex
+  base64/base32/ASCII85 runs, plain and escaped hex, ROT13/Atbash,
+  percent-encoded runs, hex-escape runs, space-delimited hex
   byte pairs, LLM control tokens (`<|im_start|>`, `[INST]`, `</system>`,
   Gemma `<start_of_turn>`, GLM `[gMASK]`/`<sop>`, generic `<|…|>` and
   fullwidth `｜…｜` chat-template markers — HIGH severity), fake model frames

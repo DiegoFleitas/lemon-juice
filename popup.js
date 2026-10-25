@@ -162,6 +162,11 @@ function typeLabel(item) {
       invisible: (i) => `Invisible character: ${i.name} (${i.hex})`,
       "encoded-base64": (i) =>
         `Encoded blob${i.likelyJwt ? " (looks like a JWT)" : ""} → “${preview(i.decoded)}”`,
+      "encoded-base32": (i) => `Base32-encoded blob → “${preview(i.decoded)}”`,
+      "encoded-ascii85": (i) => `ASCII85-encoded blob → “${preview(i.decoded)}”`,
+      "encoded-hex": (i) => `Hex-encoded blob → “${preview(i.decoded)}”`,
+      "encoded-rot13": (i) => `ROT13-decoded blob → “${preview(i.decoded)}”`,
+      "encoded-atbash": (i) => `Atbash-decoded blob → “${preview(i.decoded)}”`,
       "encoded-percent": (i) => `Percent-encoded blob → “${preview(i.decoded)}”`,
       "encoded-hex-escape": (i) => `Hex-escaped blob → “${preview(i.decoded)}”`,
       "encoded-spaced-hex": (i) =>

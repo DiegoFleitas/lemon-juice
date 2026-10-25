@@ -157,6 +157,34 @@ to keep it out of scope, and the conditions that would reopen it, are in
 node bench/paraphrase.js --tag=baseline
 ```
 
+## garak-derived axis
+
+A second, separate axis reuses the _structure_ of garak 0.17.1 encoding and
+adversarial-suffix probes. The committed corpus
+(`bench/garak/corpus.jsonl`, 73 cases) is extracted offline; neither garak nor
+a model is needed to run it:
+
+```
+node bench/garak.js --tag=baseline
+```
+
+Payload text is neutral, so no harmful probe base prompts are copied. The
+encoding family exercises base64, base32, ASCII85, plain hex, ROT13 and Atbash
+around two instruction payloads; the suffix family appends the GCG suffix list
+to a canonical instruction.
+
+| Signal                | Baseline  | After decoders |
+| --------------------- | --------- | -------------- |
+| Instruction recovered | **31.5%** | **100%**       |
+| Encoding recovered    | 16.7%     | 100%           |
+| Suffix recovered      | 100%      | 100%           |
+| Benign verdict        | 0%        | 0%             |
+
+The suffix result is the interesting negative one: appending an adversarial
+suffix does not hide the instruction from a text scanner, so it does not change
+the verdict (0% both runs). The encoding result drove new base32, ASCII85,
+plain-hex, ROT13 and Atbash decoders.
+
 ## Threats to validity
 
 - 84 attack cases, 26 benign pages. Directionally useful, not statistically

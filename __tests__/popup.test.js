@@ -43,6 +43,25 @@ test("typeLabel: encoded-base64", () => {
   assert.match(result, /ignore/);
 });
 
+test("typeLabel: encoded-base32", () => {
+  const result = typeLabel({ type: "encoded-base32", decoded: "ignore" });
+  assert.match(result, /Base32-encoded blob/);
+  assert.match(result, /ignore/);
+});
+
+test("typeLabel: encoded hex / ROT13 / Atbash", () => {
+  assert.match(typeLabel({ type: "encoded-hex", decoded: "ignore" }), /Hex-encoded/);
+  assert.match(typeLabel({ type: "encoded-rot13", decoded: "ignore" }), /ROT13-decoded/);
+  assert.match(
+    typeLabel({ type: "encoded-atbash", decoded: "ignore" }),
+    /Atbash-decoded/
+  );
+  assert.match(
+    typeLabel({ type: "encoded-ascii85", decoded: "ignore" }),
+    /ASCII85-encoded/
+  );
+});
+
 test("typeLabel: encoded-base64 with JWT", () => {
   const result = typeLabel({
     type: "encoded-base64",

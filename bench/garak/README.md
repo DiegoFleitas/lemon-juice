@@ -134,3 +134,16 @@ A baseline without a re-test is a screenshot. Baseline → fix → delta is evid
 `bench/results/*.csv` and the garak report are the two evidence artifacts. Cite
 them from the ISMS portfolio as 8.29 (security testing in development) and 10.1
 (corrective action), and put the delta — before and after — in the write-up.
+
+## 7. Detector corpus (offline)
+
+The same probe structure also seeds a detector benchmark. `extract.py` reads an
+unpacked garak 0.17.1 wheel and writes `bench/garak/corpus.jsonl` (encoding
+and adversarial-suffix cases, neutral payloads). The committed corpus is scored
+by `node bench/garak.js`; runtime needs no garak, torch, or network.
+
+```
+python bench/garak/extract.py --garak-src ../.tmp/garak-src --out bench/garak/corpus.jsonl
+```
+
+See `PROVENANCE.md` for upstream version, sources, and licensing.

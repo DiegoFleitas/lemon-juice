@@ -262,6 +262,194 @@
     return printable / s.length > 0.85;
   }
 
+  // --- 2a. Base32-encoded payloads ------------------------------------------
+  // Garak's encoding probes include Base32; unlike base64 it is a distinct
+  // alphabet with no built-in decoder, so it needs its own run detector.
+  const BASE32_RUN = /(?<![A-Za-z0-9+/])[A-Z2-7]{16,}={0,6}(?![A-Za-z0-9+/])/g;
+  const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+  function base32ToBytes(s) {
+    const clean = s.replace(/=+$/, "");
+    if (!clean) return null;
+    let bits = 0;
+    let value = 0;
+    const bytes = [];
+    for (const ch of clean) {
+      const index = BASE32_ALPHABET.indexOf(ch);
+      if (index === -1) return null;
+      value = (value << 5) | index;
+      bits += 5;
+      if (bits >= 8) {
+        bits -= 8;
+        bytes.push((value >> bits) & 0xff);
+      }
+    }
+    return bytes;
+  }
+
+  function scanBase32(text) {
+    const findings = [];
+    let m;
+    while ((m = BASE32_RUN.exec(text)) !== null) {
+      const blob = m[0];
+      const bytes = base32ToBytes(blob);
+      if (!bytes) continue;
+      const decoded = decodeUtf8Bytes(bytes);
+      if (decoded && looksLikeText(decoded)) {
+        findings.push({
+          type: "encoded-base32",
+          severity: SEVERITY.MEDIUM,
+          index: m.index,
+          sample: blob.slice(0, 32) + (blob.length > 32 ? "…" : ""),
+          decoded: decoded.slice(0, MAX_DECODED),
+        });
+      }
+    }
+    return findings;
+  }
+
+  // --- 2c. Plain hex and simple substitution encodings ----------------------
+  const HEX_PLAIN_RUN = /(?<![0-9A-Fa-f])[0-9A-Fa-f]{32,}(?![0-9A-Fa-f])/g;
+
+  // ASCII85 uses printable symbols instead of an alphabet; a long symbol-dense
+  // run that decodes to readable text is the signal.
+  const ASCII85_RUN = /[!-uz]{20,}/g;
+
+  function ascii85ToBytes(s) {
+    const bytes = [];
+    let i = 0;
+    while (i < s.length) {
+      if (s[i] === "z") {
+        bytes.push(0, 0, 0, 0);
+        i += 1;
+        continue;
+      }
+      const group = s.slice(i, i + 5);
+      let value = 0;
+      for (let j = 0; j < 5; j++) {
+        const code = j < group.length ? group.charCodeAt(j) : 117; // "u" pad
+        if (code < 33 || code > 117) return null;
+        value = value * 85 + (code - 33);
+      }
+      // A partial final group represents group.length - 1 bytes, not four;
+      // emitting the padding bytes makes fatal UTF-8 decoding fail.
+      const outCount = group.length - 1;
+      for (let k = 3; k >= 4 - outCount; k--) {
+        bytes.push((value >>> (k * 8)) & 0xff);
+      }
+      i += 5;
+    }
+    return bytes;
+  }
+
+  function scanAscii85(text) {
+    const findings = [];
+    let m;
+    while ((m = ASCII85_RUN.exec(text)) !== null) {
+      const blob = m[0];
+      const bytes = ascii85ToBytes(blob);
+      if (!bytes) continue;
+      const decoded = decodeUtf8Bytes(bytes);
+      if (decoded && looksLikeText(decoded)) {
+        findings.push({
+          type: "encoded-ascii85",
+          severity: SEVERITY.MEDIUM,
+          index: m.index,
+          sample: blob.slice(0, 32) + (blob.length > 32 ? "…" : ""),
+          decoded: decoded.slice(0, MAX_DECODED),
+        });
+      }
+    }
+    return findings;
+  }
+
+  function scanHexPlain(text) {
+    const findings = [];
+    let m;
+    while ((m = HEX_PLAIN_RUN.exec(text)) !== null) {
+      const blob = m[0];
+      if (blob.length % 2 !== 0) continue;
+      const bytes = [];
+      for (let i = 0; i < blob.length; i += 2) {
+        bytes.push(parseInt(blob.slice(i, i + 2), 16));
+      }
+      const decoded = decodeUtf8Bytes(bytes);
+      if (decoded && looksLikeText(decoded)) {
+        findings.push({
+          type: "encoded-hex",
+          severity: SEVERITY.MEDIUM,
+          index: m.index,
+          sample: blob.slice(0, 32) + (blob.length > 32 ? "…" : ""),
+          decoded: decoded.slice(0, MAX_DECODED),
+        });
+      }
+    }
+    return findings;
+  }
+
+  // ROT13 and Atbash preserve length and turn an instruction into readable
+  // plaintext; the decoded text is stored as `decoded` and re-scanned through
+  // the normal corroboration path. A finding only exists when the decoded text
+  // contains a known instruction/control shape, so ordinary prose stays quiet.
+  function makeSubstitutionMap(kind) {
+    const map = new Map();
+    const lower = "abcdefghijklmnopqrstuvwxyz";
+    const upper = lower.toUpperCase();
+    for (let i = 0; i < 26; i++) {
+      if (kind === "rot13") {
+        map.set(lower[i], lower[(i + 13) % 26]);
+        map.set(upper[i], upper[(i + 13) % 26]);
+      } else {
+        map.set(lower[i], lower[25 - i]);
+        map.set(upper[i], upper[25 - i]);
+      }
+    }
+    return map;
+  }
+
+  const ROT13_MAP = makeSubstitutionMap("rot13");
+  const ATBASH_MAP = makeSubstitutionMap("atbash");
+
+  function applySubstitution(text, map) {
+    let out = "";
+    for (const ch of text) out += map.get(ch) ?? ch;
+    return out;
+  }
+
+  function scanSubstitution(text, map, type) {
+    const decoded = applySubstitution(text, map);
+    if (decoded === text) return [];
+    const hits = [...scanInstructions(decoded), ...scanControlTokens(decoded)];
+    // Templates often put the encoded payload after a plaintext label, so a
+    // role label inside the decoded payload is not line-anchored. It is still
+    // role syntax once decoded; accept it here, where the page-level pattern
+    // would not.
+    const role = /\b(?:system|assistant|user|human|ai)\s*:/i.exec(decoded);
+    if (role) hits.push({ index: role.index });
+    if (!hits.length) return [];
+    // Start the decoded window at the first hit, not at the beginning of the
+    // page: line-anchored patterns (e.g. "system:") must remain anchored.
+    const index = Math.min(...hits.map((h) => h.index));
+    const window = decoded.slice(index, index + MAX_DECODED);
+    return [
+      {
+        type,
+        severity: SEVERITY.MEDIUM,
+        index,
+        sample: window.slice(0, 32) + (window.length > 32 ? "…" : ""),
+        decoded: window,
+      },
+    ];
+  }
+
+  function scanRot13(text) {
+    return scanSubstitution(text, ROT13_MAP, "encoded-rot13");
+  }
+
+  function scanAtbash(text) {
+    return scanSubstitution(text, ATBASH_MAP, "encoded-atbash");
+  }
+
   // --- 2b. Percent-encoding / hex-escape heuristics --------------------------
   const PERCENT_RUN = /(?:%[0-9A-Fa-f]{2}){6,}/g;
   const HEX_ESCAPE_RUN = /(?:\\x[0-9A-Fa-f]{2}){6,}/g;
@@ -1621,6 +1809,11 @@
 
     const rawContent = [
       ...scanEncoded(text),
+      ...scanBase32(text),
+      ...scanAscii85(text),
+      ...scanHexPlain(text),
+      ...scanRot13(text),
+      ...scanAtbash(text),
       ...scanPercentEncoded(text),
       ...scanHexEscape(text),
       ...scanSpacedHex(text),
@@ -1640,6 +1833,11 @@
       const seen = new Set(rawContent.map(contentFindingKey));
       const rescanned = [
         ...scanEncoded(normalizedText),
+        ...scanBase32(normalizedText),
+        ...scanAscii85(normalizedText),
+        ...scanHexPlain(normalizedText),
+        ...scanRot13(normalizedText),
+        ...scanAtbash(normalizedText),
         ...scanPercentEncoded(normalizedText),
         ...scanHexEscape(normalizedText),
         ...scanSpacedHex(normalizedText),
@@ -1750,6 +1948,11 @@
     scanText,
     scanInvisible,
     scanEncoded,
+    scanBase32,
+    scanAscii85,
+    scanHexPlain,
+    scanRot13,
+    scanAtbash,
     scanPercentEncoded,
     scanHexEscape,
     scanSpacedHex,

@@ -49,16 +49,16 @@ recovery and page verdict separately. Current numbers and known gaps are in
 
 Patterns essentially never legitimate in web copy, or well-filtered against common false positives.
 
-| Category                                                     | Examples                                                                                                                                               | Severity   |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
-| **ASCII smuggling**                                          | Unicode Tags block (`U+E0000–E007F`) carrying a full hidden ASCII payload                                                                              | High       |
-| **Bidi controls**                                            | RTL/LTR overrides & isolates that reorder or hide text ("Trojan Source")                                                                               | High       |
-| **Variation-selector smuggling**                             | Bytes hidden in a run of variation selectors after a base emoji                                                                                        | High       |
-| **Sneaky Bits**                                              | Invisible-times (U+2062) and invisible-plus (U+2064) encoding binary bits as a byte stream                                                             | High       |
-| **LLM control tokens**                                       | `<\|im_start\|>`, `[INST]`, `<<SYS>>`, Gemma `<start_of_turn>`, GLM `[gMASK]`/`<sop>`, and other ASCII `<\|marker\|>` or fullwidth `｜marker｜` tokens | High       |
-| **Visually hidden text**                                     | 1px fonts, `opacity:0`, off-screen positioning, text-color-equals-background                                                                           | Medium     |
-| **Zero-width & invisible chars**                             | ZWSP, word joiner, BOM, soft hyphen, Arabic/Syriac/Mongolian format chars                                                                              | Medium/Low |
-| **Encoded blobs (base64, percent, hex escapes, spaced hex)** | Runs that decode to readable ASCII, filtered against binary and JWT-like payloads                                                                      | Medium     |
+| Category                                                                         | Examples                                                                                                                                               | Severity   |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| **ASCII smuggling**                                                              | Unicode Tags block (`U+E0000–E007F`) carrying a full hidden ASCII payload                                                                              | High       |
+| **Bidi controls**                                                                | RTL/LTR overrides & isolates that reorder or hide text ("Trojan Source")                                                                               | High       |
+| **Variation-selector smuggling**                                                 | Bytes hidden in a run of variation selectors after a base emoji                                                                                        | High       |
+| **Sneaky Bits**                                                                  | Invisible-times (U+2062) and invisible-plus (U+2064) encoding binary bits as a byte stream                                                             | High       |
+| **LLM control tokens**                                                           | `<\|im_start\|>`, `[INST]`, `<<SYS>>`, Gemma `<start_of_turn>`, GLM `[gMASK]`/`<sop>`, and other ASCII `<\|marker\|>` or fullwidth `｜marker｜` tokens | High       |
+| **Visually hidden text**                                                         | 1px fonts, `opacity:0`, off-screen positioning, text-color-equals-background                                                                           | Medium     |
+| **Zero-width & invisible chars**                                                 | ZWSP, word joiner, BOM, soft hyphen, Arabic/Syriac/Mongolian format chars                                                                              | Medium/Low |
+| **Encoded blobs (base64, base32, ASCII85, hex, ROT13/Atbash, percent, escapes)** | Runs that decode to readable ASCII, filtered against binary and JWT-like payloads                                                                      | Medium     |
 
 ### Informational (heuristic)
 

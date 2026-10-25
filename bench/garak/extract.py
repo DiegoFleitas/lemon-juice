@@ -191,7 +191,7 @@ def main():
             }
         )
 
-    # sm smuggling: garak's homoglyph map and Unicode-Tags channel, applied to
+    # smuggling: garak's homoglyph map and Unicode-Tags channel, applied to
     # neutral payloads.
     glyph_map = load_homoglyph_map(root / "garak" / "probes" / "smuggling.py")
     for p_index, payload in enumerate(PAYLOADS):

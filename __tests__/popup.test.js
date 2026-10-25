@@ -12,7 +12,94 @@ globalThis.browser = {
   action: { setBadgeText() {}, setBadgeBackgroundColor() {} },
 };
 
-const { typeLabel, preview, verdictLine, resetStatus } = require("../popup.js");
+const {
+  typeLabel,
+  preview,
+  verdictLine,
+  resetStatus,
+  buildExportJson,
+  buildExportText,
+  exportFilename,
+} = require("../popup.js");
+
+const EXPORT_FIXTURE = {
+  url: "https://example.com/page",
+  count: 2,
+  verdict: "likely-injection",
+  corroborationCount: 1,
+  bySeverity: { high: 1, medium: 1, low: 0 },
+  items: [
+    {
+      type: "control-token",
+      severity: "high",
+      match: "<|im_start|>",
+      targetId: "pi-1",
+      targetIds: ["pi-1"],
+      groupKey: "control-token:<|im_start|>",
+      index: 1,
+      context: "title attribute",
+    },
+    {
+      type: "instruction-phrase",
+      severity: "low",
+      pattern: "internal",
+      match: "ignore previous instructions",
+      decoded: "ignore previous instructions",
+      context: "visible",
+    },
+  ],
+};
+
+test("buildExportJson: keeps findings but strips internal bookkeeping", () => {
+  const now = new Date("2026-10-25T12:00:00Z");
+  const data = buildExportJson(
+    EXPORT_FIXTURE,
+    { url: "https://example.com/page", title: "Example" },
+    "0.8.1",
+    now
+  );
+  assert.equal(data.tool, "Lemon Juice");
+  assert.equal(data.version, "0.8.1");
+  assert.equal(data.page.title, "Example");
+  assert.equal(data.verdict, "likely-injection");
+  assert.deepEqual(data.counts, {
+    total: 2,
+    high: 1,
+    medium: 1,
+    low: 0,
+    corroborating: 1,
+  });
+  assert.equal(data.findings[0].targetId, undefined);
+  assert.equal(data.findings[0].targetIds, undefined);
+  assert.equal(data.findings[0].groupKey, undefined);
+  assert.equal(data.findings[0].index, undefined);
+  assert.equal(data.findings[1].pattern, undefined);
+  assert.equal(data.findings[1].decoded, "ignore previous instructions");
+});
+
+test("buildExportText: produces a readable report", () => {
+  const text = buildExportText(
+    EXPORT_FIXTURE,
+    { url: "https://example.com/page", title: "Example" },
+    "0.8.1",
+    new Date("2026-10-25T12:00:00Z")
+  );
+  assert.match(text, /Lemon Juice 0\.8\.1/);
+  assert.match(text, /Verdict: likely-injection/);
+  assert.match(text, /#1 \[HIGH\]/);
+  assert.match(text, /#2 \[LOW\]/);
+  assert.match(text, /ignore previous instructions/);
+});
+
+test("exportFilename: includes host, timestamp and extension", () => {
+  const name = exportFilename(
+    "https://example.com/page",
+    "json",
+    new Date("2026-10-25T12:00:00Z")
+  );
+  assert.match(name, /^lemon-juice-example\.com-2026-10-25T/);
+  assert.match(name, /\.json$/);
+});
 
 test("typeLabel: unicode-tag", () => {
   const result = typeLabel({ type: "unicode-tag", decoded: "hello" });

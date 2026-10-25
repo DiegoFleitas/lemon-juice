@@ -6,7 +6,18 @@ const els = {
   status: document.getElementById("status"),
   list: document.getElementById("list"),
   rescan: document.getElementById("rescan"),
+  exportJson: document.getElementById("export-json"),
+  exportTxt: document.getElementById("export-txt"),
 };
+
+// Latest scan, kept only so the export buttons can serialize what is on screen.
+let latestResult = null;
+let latestTab = null;
+
+function setExportEnabled(enabled) {
+  els.exportJson.disabled = !enabled;
+  els.exportTxt.disabled = !enabled;
+}
 
 // Tracks which collapsed element to scroll to next time a deduped row is
 // clicked. Each item gets a cycling index into its targetIds array.
@@ -26,6 +37,9 @@ async function scan() {
   resetStatus(els.status);
   els.status.textContent = "Scanning…";
   els.list.replaceChildren();
+  latestResult = null;
+  latestTab = null;
+  setExportEnabled(false);
 
   let result;
   try {
@@ -50,6 +64,9 @@ async function scan() {
   }
 
   render(result);
+  latestResult = result || null;
+  latestTab = tab;
+  setExportEnabled(!!latestResult);
   setBadge(result, tab.id);
 }
 
@@ -316,6 +333,112 @@ function render(r) {
   }
 }
 
+function exportSafeFinding(item) {
+  const copy = { ...item };
+  // Internal correlation/scroll bookkeeping, not useful outside the popup.
+  delete copy.targetId;
+  delete copy.targetIds;
+  delete copy.groupKey;
+  delete copy.index;
+  delete copy.pattern;
+  return copy;
+}
+
+function buildExportJson(result, tab, version, now = new Date()) {
+  const bySeverity = result?.bySeverity || { high: 0, medium: 0, low: 0 };
+  return {
+    tool: "Lemon Juice",
+    version,
+    generatedAt: now.toISOString(),
+    page: {
+      url: tab?.url || result?.url || "",
+      title: tab?.title || "",
+    },
+    verdict: result?.verdict || "clean",
+    counts: {
+      total: result?.count || 0,
+      high: bySeverity.high || 0,
+      medium: bySeverity.medium || 0,
+      low: bySeverity.low || 0,
+      corroborating: result?.corroborationCount || 0,
+    },
+    findings: (result?.items || []).map(exportSafeFinding),
+  };
+}
+
+function buildExportText(result, tab, version, now = new Date()) {
+  const data = buildExportJson(result, tab, version, now);
+  const lines = [
+    `Lemon Juice ${data.version}`,
+    `Page: ${data.page.title || "(untitled)"}`,
+    data.page.url,
+    `Scanned: ${data.generatedAt}`,
+    `Verdict: ${data.verdict}`,
+    `Findings: ${data.counts.total} (${data.counts.high} high, ${data.counts.medium} medium, ${data.counts.low} low; ${data.counts.corroborating} corroborating signals)`,
+    "",
+  ];
+  data.findings.forEach((item, i) => {
+    lines.push(`#${i + 1} [${String(item.severity).toUpperCase()}] ${typeLabel(item)}`);
+    if (item.context) lines.push(`    context: ${item.context}`);
+    if (item.corroboration?.length) {
+      lines.push(
+        `    corroborated by: ${item.corroboration.map((c) => c.type).join(", ")}`
+      );
+    }
+    if (item.contextual?.length) {
+      lines.push(`    placement: ${item.contextual.join(", ")}`);
+    }
+    lines.push("");
+  });
+  return lines.join("\n");
+}
+
+function exportFilename(url, ext, now = new Date()) {
+  const stamp = now.toISOString().replace(/[:.]/g, "-");
+  let host = "";
+  try {
+    host = new URL(url).hostname.replace(/[^a-z0-9.-]/gi, "-");
+  } catch {
+    // about: pages etc. have no host
+  }
+  return `lemon-juice-${host || "findings"}-${stamp}.${ext}`;
+}
+
+function downloadExport(filename, text, mime) {
+  const blob = new Blob([text], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function extensionVersion() {
+  try {
+    return browser.runtime.getManifest().version;
+  } catch {
+    return "unknown";
+  }
+}
+
+function exportResult(ext) {
+  if (!latestResult) return;
+  const now = new Date();
+  const version = extensionVersion();
+  const isJson = ext === "json";
+  const text = isJson
+    ? JSON.stringify(buildExportJson(latestResult, latestTab, version, now), null, 2)
+    : buildExportText(latestResult, latestTab, version, now);
+  downloadExport(
+    exportFilename(latestTab?.url || latestResult.url, ext, now),
+    text,
+    isJson ? "application/json" : "text/plain"
+  );
+}
+
 function setBadge(r, tabId) {
   // Colour tracks the VERDICT, not the worst single finding: an uncorroborated
   // MEDIUM (a lone zero-width space) is noise and should not read amber.
@@ -332,7 +455,17 @@ function setBadge(r, tabId) {
 }
 
 els.rescan.addEventListener("click", scan);
+els.exportJson.addEventListener("click", () => exportResult("json"));
+els.exportTxt.addEventListener("click", () => exportResult("txt"));
 scan();
 
 if (typeof module !== "undefined" && module.exports)
-  module.exports = { typeLabel, preview, verdictLine, resetStatus };
+  module.exports = {
+    typeLabel,
+    preview,
+    verdictLine,
+    resetStatus,
+    buildExportJson,
+    buildExportText,
+    exportFilename,
+  };

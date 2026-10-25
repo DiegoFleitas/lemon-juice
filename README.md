@@ -32,7 +32,7 @@ A Firefox extension that holds a web page up to the flame. It reveals hidden tex
 
 Indirect prompt injection is ranked **LLM01** (the single highest risk) in the [OWASP Top 10 for LLM Applications](https://genai.owasp.org/llmrisk/llm01-prompt-injection/). Attackers hide instructions in invisible Unicode, bidi overrides, or zero-width characters: a human sees nothing, an AI reads and obeys. The browser is where most of us meet this threat. Yet on Firefox the only existing tooling was a narrow zero-width-character add-on.
 
-Click the toolbar icon and Lemon Juice surfaces invisible Unicode, ASCII smuggling via the Unicode Tags block, visually hidden text, encoded blobs, control tokens, and instruction-like phrases. Findings are highlighted on the page and listed in the popup, grouped by severity.
+Click the toolbar icon and Lemon Juice surfaces invisible Unicode, ASCII smuggling via the Unicode Tags block, visually hidden text, encoded blobs, control tokens, and instruction-like phrases. Findings are highlighted on the page and listed in the popup, grouped by severity, and can be exported as JSON or plain text.
 
 It detects **concealment and known payload shapes**; it does not classify intent. A reworded instruction can be perfectly visible to a human and still pass through — see Known misses for the measured number.
 
@@ -160,7 +160,7 @@ For test pages that exercise detection:
 | `detectors.js`            | **Pure** detection logic. String in, findings out. No DOM. Exposed as `globalThis.PIScanner` (injection) and `module.exports` (tests). The testable core.                                                                                                  |
 | `scan-helpers.js`         | DOM helpers for scanning and overlay rendering. Dual-export pattern. `resolveBackgroundColor` returns `null` when nothing paints a real background (no guessing the system canvas color), preventing text-color false positives on self-themed dark pages. |
 | `scan.js`                 | DOM side: walks text and comment nodes across the top document, every open shadow root, and every same-origin iframe document. Runs detectors, applies CSS-hidden-text heuristics, draws hit markers into a non-invasive overlay.                          |
-| `popup.js` / `popup.html` | Injects the scripts into the active tab, reads back results, renders findings, sets the toolbar badge.                                                                                                                                                     |
+| `popup.js` / `popup.html` | Injects the scripts into the active tab, reads back results, renders findings, sets the toolbar badge, and exports the current result as JSON or TXT.                                                                                                      |
 | `manifest.json`           | MV3. `activeTab` + `scripting`, no host permissions needed.                                                                                                                                                                                                |
 
 > [!IMPORTANT]

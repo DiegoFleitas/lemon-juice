@@ -91,14 +91,11 @@ test("buildExportText: produces a readable report", () => {
   assert.match(text, /ignore previous instructions/);
 });
 
-test("exportFilename: includes host, timestamp and extension", () => {
-  const name = exportFilename(
-    "https://example.com/page",
-    "json",
-    new Date("2026-10-25T12:00:00Z")
-  );
-  assert.match(name, /^lemon-juice-example\.com-2026-10-25T/);
+test("exportFilename: does not include the page domain", () => {
+  const name = exportFilename("json", new Date("2026-10-25T12:00:00Z"));
+  assert.match(name, /^lemon-juice-findings-2026-10-25T/);
   assert.match(name, /\.json$/);
+  assert.doesNotMatch(name, /example\.com|github\.com/);
 });
 
 test("typeLabel: unicode-tag", () => {

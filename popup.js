@@ -393,15 +393,11 @@ function buildExportText(result, tab, version, now = new Date()) {
   return lines.join("\n");
 }
 
-function exportFilename(url, ext, now = new Date()) {
+function exportFilename(ext, now = new Date()) {
   const stamp = now.toISOString().replace(/[:.]/g, "-");
-  let host = "";
-  try {
-    host = new URL(url).hostname.replace(/[^a-z0-9.-]/gi, "-");
-  } catch {
-    // about: pages etc. have no host
-  }
-  return `lemon-juice-${host || "findings"}-${stamp}.${ext}`;
+  // Deliberately no host/page name: exported files often land in shared or
+  // synced folders, and the filename should not leak where they came from.
+  return `lemon-juice-findings-${stamp}.${ext}`;
 }
 
 function downloadExport(filename, text, mime) {
@@ -433,7 +429,7 @@ function exportResult(ext) {
     ? JSON.stringify(buildExportJson(latestResult, latestTab, version, now), null, 2)
     : buildExportText(latestResult, latestTab, version, now);
   downloadExport(
-    exportFilename(latestTab?.url || latestResult.url, ext, now),
+    exportFilename(ext, now),
     text,
     isJson ? "application/json" : "text/plain"
   );

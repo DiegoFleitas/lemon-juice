@@ -13,6 +13,8 @@ _Escrito con jugo de limón. The lemon is green while this is alpha. It ripens t
 
 [Why](#why) • [Detects](#what-it-detects) • [Scope](#scope) • [Install](#install) • [Develop](#develop) • [Architecture](#architecture) • [Privacy](#privacy) • [Limitations](#limitations)
 
+Docs: [limitations catalogue](docs/limitations.md) • [detection model](docs/detection-model.md) • [benchmark](bench/README.md) • [security review notes](docs/security-review-notes.md)
+
 </div>
 
 <p align="center">
@@ -91,7 +93,7 @@ The popup leads with a page verdict rather than a raw count:
 | `suspicious`       | A high-severity finding, or one corroborated finding                                     |
 | `likely-injection` | A corroborated high-severity finding, or two independently corroborated findings         |
 
-There is deliberately **no 0–100 score**, and a page that _demonstrates_ an injection by showing an encoded payload scores the same as one carrying it. Both are deliberate choices, explained in [`docs/detection-model.md`](docs/detection-model.md).
+There is deliberately **no 0–100 score**, and a page that _demonstrates_ an injection by showing an encoded payload scores the same as one carrying it. Both are deliberate choices, covered in the detection model linked above.
 
 ## Scope
 
@@ -177,7 +179,7 @@ The full catalogue — every known miss with its measured recovery number, the v
 - **No images, no conversation state**: multimodal payloads and multi-turn attacks are out of scope by design.
 - **Accessibility text** (`.sr-only`, `aria-hidden`) is still flagged, but downgraded to LOW and barred from corroborating anything.
 
-[`bench/README.md`](bench/README.md) has the current detection-recovery numbers; [`docs/decisions/`](docs/decisions/) records which misses are deliberately left open.
+Current detection-recovery numbers are in `bench/README.md`; [`docs/decisions/`](docs/decisions/) records which misses are deliberately left open.
 
 ## Roadmap
 

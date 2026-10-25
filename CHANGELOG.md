@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.9.1 - 2026-10-25
+
+- fix(scan): recognize screen-reader wrappers on ancestors (f0d5a0d)
+
 ## v0.9.0 - 2026-10-25
 
 - feat(popup): export findings as JSON or TXT (91f6eee)

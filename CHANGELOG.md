@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.10.0 - 2026-10-25
+
+- feat: strengthen detection from the guardrail escape analysis (#9) (c48d32b)
+- bench: NVIDIA NeMo Guardrails input-rail cross-check (#8) (0ad1e82)
+- chore: repo hygiene — drop committed bytecode, shrink README assets (#10) (b35344c)
+
 ## v0.9.3 - 2026-10-25
 
 - fix(scan): match hashed visually-hidden class names (b8f21b1)

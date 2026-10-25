@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.0 - 2026-10-25
+
+- fix(garak): strip page HTML with HTMLParser (de7bc28)
+- feat(detectors): cover more garak probe families (f7081a1)
+- fix(garak): tolerate whitespace in script/style end tags (a14228b)
+
 ## v0.7.0 - 2026-10-25
 
 - feat(detectors): decode garak encoding families (372ecff)

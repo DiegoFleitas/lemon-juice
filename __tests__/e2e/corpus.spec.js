@@ -113,6 +113,10 @@ const MUST_STAY_QUIET = [
   "accessible-chat.html",
   "docs-prompt-format.html",
   "discussion-with-stray-invisible.html",
+  // A docs page quoting a fake-CoT example in visible text: the frame is
+  // informational, and instruction-like prose inside a *visible* frame must
+  // not convict (README "showcase vs. carry").
+  "docs-fake-cot-quote.html",
 ];
 
 for (const fixture of MUST_STAY_QUIET) {

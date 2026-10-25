@@ -66,8 +66,13 @@ Five files, strict separation between pure logic and DOM:
   aggregated by `scanText()` (grep `function scanText`): invisible
   characters/control codes + Unicode-Tags ASCII smuggling reassembly,
   base64 runs, percent-encoded runs, hex-escape runs, space-delimited hex
-  byte pairs, LLM control tokens (`<|im_start|>`, `[INST]`, `</system>` —
-  HIGH severity), instruction phrases (`system:`, `assistant:` — LOW
+  byte pairs, LLM control tokens (`<|im_start|>`, `[INST]`, `</system>`,
+  Gemma `<start_of_turn>`, GLM `[gMASK]`/`<sop>`, generic `<|…|>` and
+  fullwidth `｜…｜` chat-template markers — HIGH severity), fake model frames
+  (`<think>`, `<thinking>`, `<tool_call>`,
+  `<function=…>`; LOW; promoted by concealment or by
+  control-token/evidence-tier executable content, not a bare `eval(`/`exec(`),
+  instruction phrases (`system:`, `assistant:` — LOW
   informational), `scanContextSwitch` (fabricated multi-turn dialogue
   with instruction phrase or compliance flip — LOW, single-text-node
   constraint), variation-selector smuggling, and invisible-times/
@@ -207,12 +212,13 @@ topic.
 
 A new content-detector `type` must also be registered in
 `CONVICTING_CORROBORATION` or `SUPPORTING_CORROBORATION`, or it will never
-participate in scoring — `CONTENT_TYPES` is derived from their union, so
-registering in one place covers both the payload-corroboration and
-contextual-promotion paths. Pick the set by asking whether the pattern
-convicts alone; if it emits at more than one severity, `corroborationRank`
-already weights the tiers, so put it in `CONVICTING_CORROBORATION` and let a
-LOW instance stay informational.
+participate in contextual promotion — `CONTENT_TYPES` is derived from their
+union. Registration does not put it in `scanDecodedPayloads`' inner scanner
+list, so a type that should also corroborate decoded payloads must be added
+there separately. Pick the set by asking whether the pattern convicts alone;
+if it emits at more than one severity, `corroborationRank` already weights the
+tiers, so put it in `CONVICTING_CORROBORATION` and let a LOW instance stay
+informational.
 
 **Prove new promotion rules against a false positive, not just a true one.**
 Both scoring regressions caught during this work were rules that looked

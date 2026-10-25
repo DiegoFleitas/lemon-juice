@@ -849,31 +849,219 @@
   }
 
   // --- 7. LLM chat-template control-token smuggling --------------------------
-  // Verbatim <|im_start|>, [INST], </system> — parsed as turn boundaries if a
-  // model ingests the page. HIGH (unlike bare "system:"/"assistant:" in prose).
+  // Verbatim control strings from common chat-template families: ChatML/Qwen
+  // (<|im_start|>), Llama 2 ([INST]/<<SYS>>), Llama 3 (<|...|> generic), Gemma
+  // (<start_of_turn>), GLM-4 ([gMASK]/<sop>/<eop>). Parsed as turn boundaries
+  // if a model ingests the page. HIGH (unlike bare "system:"/"assistant:" in
+  // prose).
   const CONTROL_TOKENS = [
     /<\|im_start\|>/i,
     /<\|im_end\|>/i,
     /<\/system>/i,
     /\[INST\]/i,
     /\[\/INST\]/i,
+    /<<\/?SYS>>/i, // Llama 2 system fence
+    /<start_of_turn>/i, // Gemma 3/4
+    /<end_of_turn>/i, // Gemma 3/4
+    /\[gMASK\]/i, // GLM-4 prompt prefix
+    /<sop>/i, // GLM-4 start of prompt
+    /<eop>/i, // GLM-4 end of prompt
     /---\s*END OF PROMPT\s*---/i,
   ];
 
+  // A chat template is open-ended: every new model ships its own marker, so a
+  // fixed list is a coverage ceiling (the same argument the paraphrase decision
+  // record makes about phrase lists). This structural shape catches markers the
+  // list cannot enumerate, e.g. <|tool calls end|> and <|user message begin|>,
+  // the fake tool/user turn boundaries used against agentic clients. Kept
+  // separate from CONTROL_TOKENS so a known marker keeps its specific pattern
+  // identity (dedupe key) and this broad shape can be false-positive-tested on
+  // its own.
+  // The body allows any non-pipe/non-angle, non-control/format character so
+  // model-specific separators and punctuation (U+2581 in DeepSeek markers,
+  // ':', dates) are covered. Both ASCII <|...|> and the fullwidth ｜...｜ form
+  // DeepSeek ships are matched; excluding \p{C} keeps a token split by a
+  // zero-width character for the normalized pass, and requiring an
+  // alphanumeric first character keeps prose like "| and |" or "<|>" out.
+  const GENERIC_CONTROL_TOKEN =
+    /<\|[a-z0-9][^\p{C}|｜<>]{0,40}\|>|<｜[a-z0-9][^\p{C}|｜<>]{0,40}｜>/giu;
+
+  // Generic token bodies allow 40 code points, i.e. up to 84 UTF-16 units with
+  // astral characters. Keep enough of the match for identity keys (content
+  // dedupe and scan.js folding) that distinct tokens cannot truncate into the
+  // same key; display is still bounded.
+  const MAX_TOKEN_MATCH = 200;
+
   function scanControlTokens(text) {
     const findings = [];
+    const claimed = [];
     for (const re of CONTROL_TOKENS) {
-      const m = re.exec(text);
-      if (m) {
+      // matchAll needs /g; work on a global copy so a page with several turns
+      // reports each one instead of only the first.
+      const global = re.global ? re : new RegExp(re.source, `${re.flags}g`);
+      for (const m of text.matchAll(global)) {
+        claimed.push([m.index, m.index + m[0].length]);
         findings.push({
           type: "control-token",
           severity: SEVERITY.HIGH,
           index: m.index,
-          match: m[0].slice(0, 80),
+          match: m[0].slice(0, MAX_TOKEN_MATCH),
           pattern: re.source, // internal: cross-pass dedup key, not for display
         });
       }
     }
+    // Merge known-token ranges so the overlap check is a pointer walk. Testing
+    // every generic match against every known range is quadratic on a page that
+    // alternates the two (e.g. <|im_start|> <|a|> <|im_start|> <|a|> ...).
+    claimed.sort((a, b) => a[0] - b[0]);
+    const merged = [];
+    for (const range of claimed) {
+      const last = merged[merged.length - 1];
+      if (last && range[0] <= last[1]) last[1] = Math.max(last[1], range[1]);
+      else merged.push(range);
+    }
+    let nextClaimed = 0;
+    for (const m of text.matchAll(GENERIC_CONTROL_TOKEN)) {
+      const start = m.index;
+      const end = start + m[0].length;
+      while (nextClaimed < merged.length && merged[nextClaimed][1] <= start)
+        nextClaimed++;
+      // A known marker already has a finding; the generic pass only covers
+      // shapes the list misses.
+      if (nextClaimed < merged.length && merged[nextClaimed][0] < end) continue;
+      findings.push({
+        type: "control-token",
+        severity: SEVERITY.HIGH,
+        index: start,
+        match: m[0].slice(0, MAX_TOKEN_MATCH),
+        pattern: GENERIC_CONTROL_TOKEN.source,
+      });
+    }
+    return findings;
+  }
+
+  // --- 7a. Fake model frames (jailbreak role framing) ------------------------
+  // Some jailbreaks do not override instructions directly; they forge the
+  // model's own reasoning or tool-call frame (<think>, <thinking>, <tool_call>)
+  // so the model reads the injected text as its own deliberation or as a tool
+  // result rather than as page content. This is a role frame, not a concealment
+  // channel or a chat-template token: the page stays readable, and
+  // documentation about reasoning models legitimately quotes these tags. So the
+  // frame itself is LOW and non-convicting. Only content that convicts alone (a
+  // control token, code execution, a reverse shell) promotes it from its
+  // payload; instruction-like prose inside a visible frame must NOT promote it,
+  // or a docs page quoting a fake-CoT example would read as suspicious while
+  // the same quoted phrase outside a frame stays noise. Concealment of the
+  // frame is handled later by applyContextualPromotion, which can see placement.
+  //
+  // Names come from common chat templates: Qwen/DeepSeek use <think> and
+  // Qwen's <tool_call><function=NAME><parameter=NAME>...</parameter></function>;
+  // Anthropic-style docs use <thinking>.
+  //
+  // Scope: this sees frames delivered as text nodes (visible copy and HTML
+  // comments) and the attribute values scan.js inspects (aria-label, title). A
+  // raw <thinking> element is parsed as markup, so its tag name never reaches a
+  // text node; that case stays out of reach of the text-only layer.
+  const REASONING_TAG_NAMES = [
+    "think",
+    "thinking",
+    "reasoning",
+    "analysis",
+    "scratchpad",
+    "tool_call",
+    "tool_result",
+    "tool_response",
+    "function",
+    "parameter",
+    "function_call",
+    "function_result",
+  ];
+
+  // One open/close pattern per tag name. Frames are paired with a stack, not
+  // by consuming closes in order: nested same-name frames must get their real
+  // contents, not a payload that starts at one close and ends at the next.
+  //
+  // Opening tags are found as "<name" plus the next ">" rather than with a
+  // character class: an attribute may legitimately contain "<", and a class
+  // that cannot cross it would silently skip the frame (while a class that can
+  // scan to end-of-text is the quadratic bug fixed earlier). lastIndex advances
+  // past each complete tag, so every character is walked at most once.
+  //
+  // The lookahead allows "=" so Qwen's <function=NAME> and <parameter=NAME>
+  // openings pair with their plain </function>/</parameter> closings.
+  const REASONING_TAG_PATTERNS = REASONING_TAG_NAMES.map((name) => ({
+    name,
+    open: new RegExp(`<${name}(?=[\\s/>=])`, "gi"),
+    close: new RegExp(`<\\\\?\\/${name}\\s*>`, "gi"),
+  }));
+
+  // A frame's payload is processed through a bounded prefix: MAX_DECODED is
+  // stored/re-scanned, and the larger window lets invisible padding at the
+  // start (which the raw pass sees but the normalized pass does not) still
+  // resolve to the same payload in both passes. scan.js caps the item list at
+  // 200, so stop after that many frames instead of doing per-frame work on a
+  // page that nests thousands of them.
+  const FRAME_PAYLOAD_SCAN_LIMIT = MAX_DECODED * 4;
+  const MAX_FRAME_FINDINGS = 200;
+
+  function framePayload(text, start, end) {
+    const raw = text.slice(start, Math.min(end, start + FRAME_PAYLOAD_SCAN_LIMIT));
+    let stripped = "";
+    for (const ch of raw) {
+      const cp = ch.codePointAt(0);
+      if (!(isTagChar(cp) || isPropInvisible(cp))) stripped += ch;
+    }
+    return stripped.trim().slice(0, MAX_DECODED);
+  }
+
+  function scanReasoningFrames(text) {
+    const findings = [];
+    for (const { name, open, close } of REASONING_TAG_PATTERNS) {
+      open.lastIndex = 0;
+      const events = [];
+      let m;
+      while ((m = open.exec(text))) {
+        const end = text.indexOf(">", open.lastIndex);
+        // No complete opening tag can follow if this candidate has no ">";
+        // breaking here is what keeps a wall of unclosed "<thinking " linear.
+        if (end === -1) break;
+        events.push({ start: m.index, end: end + 1, close: false });
+        open.lastIndex = end + 1;
+      }
+      if (!events.length) continue;
+      for (const c of text.matchAll(close)) {
+        events.push({ start: c.index, end: c.index + c[0].length, close: true });
+      }
+      events.sort((a, b) => a.start - b.start);
+      const stack = [];
+      for (const ev of events) {
+        if (!ev.close) {
+          stack.push(ev);
+          continue;
+        }
+        const opener = stack[stack.length - 1];
+        // A close inside an opening tag (e.g. "<thinking </thinking> ...")
+        // belongs to that tag, not to a frame boundary.
+        if (!opener || opener.end > ev.start) continue;
+        stack.pop();
+        const decoded = framePayload(text, opener.end, ev.start);
+        // A payload of only invisible characters is not a frame: it would
+        // render as an empty popup row (and defeat raw/normalized dedupe).
+        if (!decoded) continue;
+        findings.push({
+          type: "fake-reasoning-frame",
+          severity: SEVERITY.LOW,
+          index: opener.start,
+          tag: name,
+          decoded,
+        });
+        if (findings.length >= MAX_FRAME_FINDINGS) {
+          findings.sort((a, b) => a.index - b.index);
+          return findings;
+        }
+      }
+    }
+    findings.sort((a, b) => a.index - b.index);
     return findings;
   }
 
@@ -986,8 +1174,22 @@
   // findings by which pattern fired, encoded findings by decoded payload — both
   // survive the strip/normalize offset shift that changes `sample`/`index`.
   function contentFindingKey(f) {
-    if (f.type === "instruction-phrase" || f.type === "control-token")
-      return `${f.type}:${f.pattern}`;
+    if (f.type === "instruction-phrase") return `${f.type}:${f.pattern}`;
+    // Every generic <|...|> token shares one pattern, so key on the matched
+    // marker too: otherwise a visible generic token masks a different concealed
+    // one that only the normalized pass reveals.
+    if (f.type === "control-token") return `${f.type}:${f.pattern}:${f.match}`;
+    // A reasoning frame is identified by its tag plus its payload with
+    // invisible characters stripped and then trimmed: the raw and normalized
+    // passes see the same frame with different (invisible-stripped) payload
+    // text, so keying on the raw `decoded` would double-count it when an
+    // invisible character sits at the payload edge; keying on the tag alone
+    // would let a visible frame mask a different frame that only normalization
+    // reveals.
+    if (f.type === "fake-reasoning-frame") {
+      const payload = stripInvisibleChars(f.decoded).text.trim();
+      return `${f.type}:${f.tag}:${payload.slice(0, 120)}`;
+    }
     if (f.type === "context-switch")
       return `${f.type}:${[...f.roles].sort().join(",")}:${f.reason}`;
     if (f.type === "code-execution" || f.type === "reverse-shell")
@@ -1147,7 +1349,19 @@
         ...scanCodeExecution(payload),
         ...scanReverseShell(payload),
         ...scanContextSwitch(payload),
-      ];
+      ].filter(
+        // A reasoning frame is promoted from its payload only by content that
+        // is itself evidence: a control token, a reverse shell, or code
+        // execution scored MEDIUM+. Instruction-like prose inside a *visible*
+        // frame must not convict, or every docs page quoting a fake-CoT
+        // example becomes suspicious, and a bare LOW eval(/exec( must not
+        // either (corroborationRank deliberately treats it as informational).
+        // Concealment of the frame is handled by applyContextualPromotion,
+        // which can see placement.
+        (c) =>
+          f.type !== "fake-reasoning-frame" ||
+          (CONVICTING_CORROBORATION.has(c.type) && corroborationRank(c) > 0)
+      );
       if (!inner.length) continue;
       f.corroboration = inner.map((c) => ({
         type: c.type,
@@ -1168,7 +1382,11 @@
     "code-execution",
     "reverse-shell",
   ]);
-  const SUPPORTING_CORROBORATION = new Set(["instruction-phrase", "context-switch"]);
+  const SUPPORTING_CORROBORATION = new Set([
+    "instruction-phrase",
+    "context-switch",
+    "fake-reasoning-frame",
+  ]);
   // Saturates at HIGH. Two consumers apply this table — promoteSeverity here,
   // and applyContextualPromotion (Task 4) — so a corroboration/context type
   // recognized by both paths would compound across them.
@@ -1212,9 +1430,11 @@
     return { ...finding, severity: next, promotedFrom: finding.severity };
   }
 
-  // Derived, not a third parallel list: these are exactly the types that can
-  // corroborate a payload, so a new content detector registered in one place
-  // cannot silently go missing from the other.
+  // Derived, not a third parallel list: these are the types that count as
+  // content for contextual promotion, and every one except fake-reasoning-frame
+  // also appears in scanDecodedPayloads' inner scanner list. A frame is content
+  // for placement promotion but is not re-scanned inside decoded payloads
+  // (depth-1), so it never appears in `corroboration`.
   const CONTENT_TYPES = new Set([
     ...CONVICTING_CORROBORATION,
     ...SUPPORTING_CORROBORATION,
@@ -1275,8 +1495,36 @@
       for (const i of content) note(i, "inside visually hidden text");
     }
 
+    // A frame and the content finding inside it come from the same text node
+    // and therefore share a target. Counting both as corroborated would
+    // double-count one injection and can push the verdict a tier (two
+    // corroborated findings = likely-injection), so the content finding carries
+    // the verdict and the frame only promotes when it is the only evidence.
+    const PEER_CONTENT = new Set([
+      "instruction-phrase",
+      "control-token",
+      "context-switch",
+      "code-execution",
+      "reverse-shell",
+    ]);
+
     for (const item of items) {
       if (!CONTENT_TYPES.has(item.type)) continue;
+      if (item.type === "fake-reasoning-frame") {
+        const group = itemTargets(item).flatMap((id) => byTarget.get(id) || []);
+        // Only defer to a peer that carries the concealment itself. A raw
+        // instruction phrase that only regex-matched across the frame's broken
+        // tag (no normalized/inComment flag) must not suppress the frame's own
+        // concealment signal.
+        const peerCarries = group.some(
+          (p) =>
+            p !== item &&
+            PEER_CONTENT.has(p.type) &&
+            (p.normalized || p.inComment || p.attrName)
+        );
+        const hiddenPeer = group.some((p) => p.type === "css-hidden" && !p.likelyA11y);
+        if (peerCarries || hiddenPeer) continue;
+      }
       // Signal A: the phrase itself was obfuscated — it only became readable
       // after stripping invisible characters or undoing leetspeak/homoglyphs.
       // Direct proof the hiding was done to this very phrase.
@@ -1292,6 +1540,12 @@
       const why = reasons.get(item);
       if (!why) return item;
       const contextual = [...why];
+      // A frame that already climbed on its payload must not climb again on
+      // placement: NEXT_SEVERITY would compound two independent signals into
+      // HIGH. The reasons are still recorded for the popup.
+      if (item.type === "fake-reasoning-frame" && item.promotedFrom) {
+        return { ...item, contextual };
+      }
       const next = NEXT_SEVERITY[item.severity];
       if (next === item.severity) return { ...item, contextual };
       return {
@@ -1355,6 +1609,7 @@
       ...scanUnicodeEscape(text),
       ...scanHtmlEntities(text),
       ...scanControlTokens(text),
+      ...scanReasoningFrames(text),
       ...scanInstructions(text),
       ...scanContextSwitch(text),
       ...scanCodeExecution(text),
@@ -1373,6 +1628,7 @@
         ...scanUnicodeEscape(normalizedText),
         ...scanHtmlEntities(normalizedText),
         ...scanControlTokens(normalizedText),
+        ...scanReasoningFrames(normalizedText),
         ...scanInstructions(normalizedText),
       ];
       normalizedOnly = rescanned
@@ -1482,6 +1738,7 @@
     scanUnicodeEscape,
     scanHtmlEntities,
     scanControlTokens,
+    scanReasoningFrames,
     scanInstructions,
     scanContextSwitch,
     scanVariationSelectors,

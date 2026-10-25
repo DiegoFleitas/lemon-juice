@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.6.1 - 2026-10-25
+
+- fix(detectors): report unclosed model frames as incomplete (eeed611)
+- docs: show complete fake-model-frame examples (d45f344)
+
 ## v0.6.0 - 2026-10-25
 
 - chore(deps-dev): bump @eslint/js, @playwright/test, eslint, prettier (26963e9)

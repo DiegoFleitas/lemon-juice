@@ -1,0 +1,4 @@
+# The NVIDIA guardrail axis records sha256 hashes of its evidence files, so their
+# bytes must not depend on the checkout platform: force LF for that subtree even
+# on Windows clones where core.autocrlf would otherwise convert to CRLF.
+bench/nvidia-guardrails/** text eol=lf

@@ -7,8 +7,9 @@ yarn-error.log*
 pnpm-debug.log*
 .pnpm-store/
 
-# Local Python environments (garak run only, never committed)
+# Local Python environments (benchmark runs only, never committed)
 .venv-garak/
+.venv-nvidia/
 .garak-libs/
 .uvtools/
 .uv/
@@ -17,6 +18,10 @@ pnpm-debug.log*
 .vendor/
 .xdg/
 .tmp/
+
+# Local secrets (e.g. LLAMA_API_KEY for a keyed local router) — never committed
+.env
+.env.*
 
 # Build artifacts
 dist/

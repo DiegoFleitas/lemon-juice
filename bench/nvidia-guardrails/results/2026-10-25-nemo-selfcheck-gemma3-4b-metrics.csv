@@ -1,0 +1,46 @@
+track,split,comparison,n,tp,fp,tn,fn,recall,fpr,precision,note
+main,all,lj_any_vs_label,110,67,1,25,17,79.8,3.8,98.5,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+main,all,lj_medium_vs_label,110,61,0,26,23,72.6,0,100,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+main,all,lj_verdict_vs_label,110,49,0,26,35,58.3,0,100,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+main,all,lj_recovered_vs_label,110,40,1,25,44,47.6,3.8,97.6,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+main,all,gr_block_vs_label,110,55,1,25,29,65.5,3.8,98.2,predictor=guardrail block; positives=attack rows; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+main,all,lj_any_vs_gr_block,110,40,28,26,16,71.4,51.9,58.8,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"
+main,all,lj_medium_vs_gr_block,110,34,27,27,22,60.7,50,55.7,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"
+main,all,lj_verdict_vs_gr_block,110,26,23,31,30,46.4,42.6,53.1,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"
+main,all,lj_recovered_vs_gr_block,110,26,15,39,30,46.4,27.8,63.4,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"
+garak,dev,lj_any_vs_label,82,56,1,25,0,100,3.8,98.2,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+garak,dev,lj_medium_vs_label,82,33,0,26,23,58.9,0,100,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+garak,dev,lj_verdict_vs_label,82,33,0,26,23,58.9,0,100,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+garak,dev,lj_recovered_vs_label,82,56,1,25,0,100,3.8,98.2,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+garak,dev,gr_block_vs_label,82,39,1,25,17,69.6,3.8,97.5,predictor=guardrail block; positives=attack rows; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+garak,dev,lj_any_vs_gr_block,82,39,18,24,1,97.5,42.9,68.4,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"
+garak,dev,lj_medium_vs_gr_block,82,23,10,32,17,57.5,23.8,69.7,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"
+garak,dev,lj_verdict_vs_gr_block,82,23,10,32,17,57.5,23.8,69.7,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"
+garak,dev,lj_recovered_vs_gr_block,82,39,18,24,1,97.5,42.9,68.4,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"
+garak,holdout,lj_any_vs_label,81,55,1,25,0,100,3.8,98.2,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+garak,holdout,lj_medium_vs_label,81,34,0,26,21,61.8,0,100,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+garak,holdout,lj_verdict_vs_label,81,34,0,26,21,61.8,0,100,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+garak,holdout,lj_recovered_vs_label,81,55,1,25,0,100,3.8,98.2,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+garak,holdout,gr_block_vs_label,81,46,1,25,9,83.6,3.8,97.9,predictor=guardrail block; positives=attack rows; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+garak,holdout,lj_any_vs_gr_block,81,46,10,24,1,97.9,29.4,82.1,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"
+garak,holdout,lj_medium_vs_gr_block,81,27,7,27,20,57.4,20.6,79.4,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"
+garak,holdout,lj_verdict_vs_gr_block,81,27,7,27,20,57.4,20.6,79.4,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"
+garak,holdout,lj_recovered_vs_gr_block,81,46,10,24,1,97.9,29.4,82.1,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"
+garak,all,lj_any_vs_label,137,111,1,25,0,100,3.8,99.1,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+garak,all,lj_medium_vs_label,137,67,0,26,44,60.4,0,100,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+garak,all,lj_verdict_vs_label,137,67,0,26,44,60.4,0,100,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+garak,all,lj_recovered_vs_label,137,111,1,25,0,100,3.8,99.1,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+garak,all,gr_block_vs_label,137,85,1,25,26,76.6,3.8,98.8,predictor=guardrail block; positives=attack rows; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+garak,all,lj_any_vs_gr_block,137,85,27,24,1,98.8,52.9,75.9,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"
+garak,all,lj_medium_vs_gr_block,137,50,17,34,36,58.1,33.3,74.6,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"
+garak,all,lj_verdict_vs_gr_block,137,50,17,34,36,58.1,33.3,74.6,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"
+garak,all,lj_recovered_vs_gr_block,137,85,27,24,1,98.8,52.9,75.9,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"
+all,all,lj_any_vs_label,221,178,1,25,17,91.3,3.8,99.4,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+all,all,lj_medium_vs_label,221,128,0,26,67,65.6,0,100,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+all,all,lj_verdict_vs_label,221,116,0,26,79,59.5,0,100,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+all,all,lj_recovered_vs_label,221,151,1,25,44,77.4,3.8,99.3,positives=attack rows in this track/split; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+all,all,gr_block_vs_label,221,140,1,25,55,71.8,3.8,99.3,predictor=guardrail block; positives=attack rows; negatives=26 shared benign pages (the same controls for the main and garak tracks)
+all,all,lj_any_vs_gr_block,221,125,54,26,16,88.7,67.5,69.8,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"
+all,all,lj_medium_vs_gr_block,221,84,44,36,57,59.6,55,65.6,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"
+all,all,lj_verdict_vs_gr_block,221,76,40,40,65,53.9,50,65.5,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"
+all,all,lj_recovered_vs_gr_block,221,111,41,39,30,78.7,51.3,73,"reference=guardrail block decision; positives=GR-blocked cases, negatives=GR-allowed cases; rows include the 26 shared benign pages"

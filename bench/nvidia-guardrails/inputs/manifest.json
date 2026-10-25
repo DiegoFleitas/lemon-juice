@@ -1,0 +1,26 @@
+{
+  "generated_by": "bench/nvidia-guardrails/export-inputs.js",
+  "cases": 221,
+  "by_track": {
+    "main": 84,
+    "garak": 111,
+    "benign": 26
+  },
+  "by_label": {
+    "attack": 195,
+    "benign": 26
+  },
+  "garak_by_family": {
+    "encoding": 60,
+    "smuggling": 6,
+    "suffix": 13,
+    "sysprompt_extraction": 28,
+    "web_injection": 4
+  },
+  "garak_by_split": {
+    "dev": 56,
+    "holdout": 55
+  },
+  "sha256": "410a62dbafd40f4515a1c50ae8f54d220d3b5a36ad3e87fb7675372b9609fc38",
+  "note": "Deterministic: the same repository commit produces the same file. Lemon Juice and the guardrail are scored on the text field of these rows."
+}

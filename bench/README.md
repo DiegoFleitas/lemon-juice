@@ -191,6 +191,37 @@ Dataset-backed latent-injection generators and the PromptInject generator are
 excluded: they need model/dataset dependencies that cannot be extracted
 offline. See `bench/garak/PROVENANCE.md`.
 
+## NVIDIA guardrails cross-check
+
+A separate, pinned comparison — not a change to the scanner. The same page text
+is fed to both systems on the existing corpora: 84 main-matrix attacks, the 111
+garak-derived attacks (dev/holdout reported separately) and the 26 benign pages
+as shared controls. The guardrail runs fully offline: NeMo Guardrails 0.24.1
+driving `gemma-3-4b-it` Q4_K_M through a local llama.cpp server at temperature 0,
+with NVIDIA's example self-check prompt copied verbatim. No cloud endpoint, no
+credentials.
+
+On the 195 attacks, Lemon Juice flagged 91.3% (any finding) and 59.5% at
+`verdict` level; the guardrail blocked 71.8%. The overlap is partial: of the 151
+attacks where Lemon Juice recovered the instruction, the guardrail blocked 111
+(73.5%); the guardrail blocked 15 attacks Lemon Juice missed, while Lemon Juice
+flagged 53 the guardrail allowed. Benign false positives were 1/26 each (Lemon
+Juice `noise` only; one guardrail block). Latency: Lemon Juice p50 0.22 ms
+in-process vs guardrail p50 1.4 s / p95 10.7 s on CPU.
+
+This is a property of one pinned local configuration — a 4B quantised model is far
+weaker than the models NVIDIA recommends for these rails — not a measurement of
+NVIDIA's hosted guardrails, and a page fed directly into an input rail is a proxy
+for the real page → prompt → model pipeline.
+
+```
+node bench/nvidia-guardrails/run.js --tag=2026-10-25-nemo-selfcheck-gemma3-4b --analyze-only --force
+```
+
+Setup, versions, per-family breakdown and limitations are in
+[`nvidia-guardrails/README.md`](nvidia-guardrails/README.md), with the numbers in
+[`nvidia-guardrails/results/RESULTS.md`](nvidia-guardrails/results/RESULTS.md).
+
 ## Threats to validity
 
 - 84 attack cases, 26 benign pages. Directionally useful, not statistically

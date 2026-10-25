@@ -6,3 +6,6 @@ pnpm-lock.yaml
 
 # generated benchmark output
 bench/results
+# guardrail-axis evidence is emitted byte-for-byte by analyze.js; hand-formatting
+# it would break the "analysis-only re-run is byte-identical" property.
+bench/nvidia-guardrails/results

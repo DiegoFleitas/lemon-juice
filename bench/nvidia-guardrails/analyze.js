@@ -1160,7 +1160,9 @@ function mdInline(value, maxLength = 80) {
 }
 
 function mdCell(value, maxLength = 80) {
-  return mdInline(value, maxLength).replace(/\|/g, "\\|");
+  // Escape backslashes before pipes: a backslash in model output would
+  // otherwise swallow the pipe escape (CodeQL js/incomplete-sanitization).
+  return mdInline(value, maxLength).replace(/[\\|]/g, (ch) => `\\${ch}`);
 }
 
 function metaValue(meta, key, fallback) {

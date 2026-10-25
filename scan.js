@@ -158,18 +158,26 @@
     function findingIdentityKey(item) {
       const signal = item.attrName ? `${item.type}:${item.attrName}` : item.type;
       const fingerprint =
-        item.type === "instruction-phrase" || item.type === "control-token"
+        item.type === "instruction-phrase"
           ? item.pattern
-          : item.type === "invisible" || item.type === "unicode-tag"
-            ? item.hex
-            : item.type === "css-hidden"
-              ? item.reasons.join(",")
-              : // Bounded at 120 to preserve pre-existing fold behaviour:
-                // `decoded` used to be truncated at capture, and is now stored
-                // full-length so detectors.js can re-scan it for corroboration.
-                // Unbounded here, two long payloads agreeing in their first 120
-                // chars would stop sharing a groupKey and stop folding.
-                (item.decoded ?? "").slice(0, 120);
+          : item.type === "control-token"
+            ? // Generic tokens share one pattern; the match keeps distinct
+              // markers from folding into one row (and from hiding each other).
+              `${item.pattern}:${item.match}`
+            : item.type === "fake-reasoning-frame"
+              ? // The tag is part of the identity: <thinking>same</thinking>
+                // and <analysis>same</analysis> are different findings.
+                `${item.tag}:${(item.decoded ?? "").slice(0, 120)}`
+              : item.type === "invisible" || item.type === "unicode-tag"
+                ? item.hex
+                : item.type === "css-hidden"
+                  ? item.reasons.join(",")
+                  : // Bounded at 120 to preserve pre-existing fold behaviour:
+                    // `decoded` used to be truncated at capture, and is now stored
+                    // full-length so detectors.js can re-scan it for corroboration.
+                    // Unbounded here, two long payloads agreeing in their first 120
+                    // chars would stop sharing a groupKey and stop folding.
+                    (item.decoded ?? "").slice(0, 120);
       return {
         full: `${signal}:${fingerprint}:${item.context}`,
         group: `${signal}:${fingerprint}`,

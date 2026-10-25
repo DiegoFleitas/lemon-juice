@@ -173,6 +173,8 @@ function typeLabel(item) {
       "sneaky-bits-smuggling": (i) =>
         `Hidden invisible-bit-encoded payload → “${preview(i.decoded)}”`,
       "control-token": (i) => `LLM chat-template control token: “${i.match}”`,
+      "fake-reasoning-frame": (i) =>
+        `Fake model frame <${i.tag}>: “${preview(i.decoded)}”`,
       "css-hidden": (i) =>
         `Visually hidden text (${i.reasons.join(", ")})${i.likelyA11y ? " — looks like accessibility markup, downgraded" : ""}`,
       "instruction-phrase": (i) =>

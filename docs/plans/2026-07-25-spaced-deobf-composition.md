@@ -126,3 +126,12 @@ node -e 'const S=require("./detectors.js");
   (`ᴜꜱᴇʀ` unchanged), so it would require a fresh hand-maintained letter map:
   exactly the treadmill the audit exists to stop. Bounded (one ~30-char block)
   and unseen in the wild → YAGNI. Add only if a real report shows it.
+
+## Update 2026-10-25
+
+The generic spaced-token collapse (`collapseSpacedTokens`, run after
+`normalizeDeobfuscated`) now handles payloads whose words are separated by 2+
+spaces, so the three hand-written `SPACED_INSTRUCTION_PATTERNS` are no longer the
+only path for any novel phrasing — they remain for payloads spaced with a single
+space between every letter _and_ word, where the word boundary is unrecoverable.
+See `docs/decisions/2026-10-25-detection-strengthening.md`.

@@ -85,7 +85,7 @@ and it lands on `noise`, not `suspicious`.
 
 Latency on attack scans: p50 0.7 ms, p95 4.0 ms, max 27 ms.
 
-### Delta: small caps (the one fix so far)
+### Delta: small caps (2026-10-20)
 
 | Metric               | Before | After |
 | -------------------- | ------ | ----- |
@@ -100,6 +100,41 @@ P2, P4, P5 remain out of reach because the _phrasing_ is not covered, not the
 encoding). 174 unit tests pass. The fix is a U+1D00-block fold in
 `unicodeLetterToAscii`, not a new detector.
 
+### Delta: structural strengthening (2026-10-25)
+
+Driven by the NVIDIA guardrail cross-check: the guardrail let 55/195 attacks
+through, and 15 of Lemon Juice's 17 misses were three payload _shapes_ rather
+than new concealment. One detector change, same matrix and seed, 26 benign
+pages, no new finding type or severity:
+
+- generic spaced-token collapse (`collapseSpacedTokens`) after deobfuscation, so
+  word-spaced payloads are readable before the instruction scan;
+- five structural patterns: exfiltration with a URL destination, "repeat
+  everything above verbatim", "then follow the new instructions", "disregard
+  your guidelines", and a determiner-gated credential-access imperative.
+
+| Metric                  | 2026-10-20 | 2026-10-25 | 2026-10-25 vs 2026-10-20 + guardrail? |
+| ----------------------- | ---------: | ---------: | ------------------------------------- |
+| any finding             |      79.8% |       100% | —                                     |
+| medium+                 |      72.6% |      92.9% | —                                     |
+| recovered               |      47.6% |       100% | —                                     |
+| verdict suspicious+     |      58.3% |      92.9% | —                                     |
+| benign any/medium/verd  |   3.8/0/0% |   3.8/0/0% | —                                     |
+| spaced-letters (any)    |      16.7% |       100% | —                                     |
+| plain-control (medium+) |         0% |         0% | by design                             |
+| paraphrase axis dev     |        25% |        50% | —                                     |
+| paraphrase axis holdout |         0% |       8.3% | held-out bar (≥40%) not met           |
+| garak recovered         |       100% |       100% | no regression                         |
+
+The main-matrix jump is **shape coverage, not generalisation**: those five
+patterns were derived from the misses in this corpus, and the paraphrase axis's
+held-out half only moves 0% → 8.3%. Read the gain as "the documented shapes are
+now recognised", not "paraphrase is solved". Benign pages and the 90-test browser
+suite are unchanged. Decision record:
+`docs/decisions/2026-10-25-detection-strengthening.md`; committed runs:
+`2026-10-25-after-strengthen`, `2026-10-25-garak-after-strengthen`,
+`2026-10-25-paraphrase-after-strengthen`.
+
 ## What the numbers say
 
 1. **Smuggling channels are the strong suit.** Tags, variation selectors,
@@ -109,29 +144,32 @@ encoding). 174 unit tests pass. The fix is a U+1D00-block fold in
    drawn from the techniques this repo implements and documents, so an encoding
    that exists only in the wild is absent from every number here and scores 0 by
    construction.
-2. **Recognising the payload is the weak axis.** Only half the canonical
-   payloads are recovered, and _none_ of the paraphrases. Every paraphrase
-   detection at 29% comes from the wrapper (bidi control, control token), not
-   from understanding the sentence. This quantifies the README's "rephrased
-   override language" miss — it is not an edge case, it is the majority of
-   paraphrase traffic.
-3. **Small caps: fixed (0% → 50%).** Root cause was the one the README predicted:
-   the U+1D00 block is not NFKC-foldable, so the normaliser left it alone. The
-   fix is a fold table in `unicodeLetterToAscii` plus four tests. The remaining
-   50% is the paraphrase gap in (2), not the encoding.
-4. **Spaced letters: 17%, and the cause is not what it looked like.** This is not
-   a broken normaliser: `SPACED_INSTRUCTION_PATTERNS` covers three override
-   families (ignore/disregard/never-say), so only the canonical "ignore all
-   previous instructions" matches. A spaced _"you are now in developer mode"_
-   is never collapsed. The README now says so under Known misses. Generic
-   spaced-text collapsing is a design change with its own false-positive risk —
-   filed, not rushed.
+2. **Recognising the payload was the weak axis in the 2026-10-20 baseline.** At
+   that point only half the canonical payloads were recovered, and _none_ of the
+   paraphrases. The 2026-10-25 structural additions recover 100% of the matrix
+   payloads, but that is shape coverage (see the delta above and the paraphrase
+   holdout), not a general paraphrase capability.
+3. **Small caps: fixed.** The 2026-10-20 fix took small caps 0% → 50%: the U+1D00
+   block is not NFKC-foldable, so the normaliser left it alone. The 2026-10-25
+   phrasing additions take the family to 100%; the remaining risk is letters
+   outside the fold table.
+4. **Spaced letters: fixed generically.** The 2026-10-20 baseline was 17% because
+   `SPACED_INSTRUCTION_PATTERNS` only covered three override families. The
+   generic collapse now handles any payload with 2+ spaces between words (100% on
+   the matrix); payloads spaced with a single space between every letter _and_
+   word still rely on those three patterns.
 5. **Zero-width is the ambiguity case.** The mechanism is MEDIUM by design, and
    only contextual promotion (phrase revealed after stripping) lifts the verdict.
    That works for a canonical phrase and fails for a paraphrase — consistent with
    (2).
 6. **Benign traffic is quiet.** 0% verdict FPR, one informational page. With 26
    pages this is a smoke test, not an estimate.
+7. **The guardrail cross-check is the external check.** With the strengthened
+   detector, Lemon Juice flags all 195 attacks and reaches verdict level on
+   74.4%; every one of the guardrail's 55 escapes is now flagged and recovered,
+   and the two attacks missed by both systems are gone. That is a statement about
+   this corpus's known shapes, not a claim that the guardrail (or any policy
+   check) is redundant.
 
 ## Paraphrase axis
 
@@ -140,18 +178,21 @@ encoding? `bench/paraphrase.js` measures **phrasing**: can it recognise the
 instruction when the words change? 24 payloads, four families (lexical,
 structural, oblique, roleplay), half held out.
 
-| Signal                | Result           |
-| --------------------- | ---------------- |
-| Instruction recovered | **12.5%** (3/24) |
-| Medium+               | 0%               |
-| Verdict suspicious+   | 0%               |
-| Held-out split        | **0%** (0/12)    |
+| Signal                |    2026-10-20 |      2026-10-25 |
+| --------------------- | ------------: | --------------: |
+| Instruction recovered |         12.5% |           29.2% |
+| Medium+               |            0% |              0% |
+| Verdict suspicious+   |            0% |              0% |
+| Held-out split        | **0%** (0/12) | **8.3%** (1/12) |
 
-The three recovered rows are near-canonical phrasings that happen to overlap the
-phrase list; every one is LOW severity and none reaches a verdict. That is a
-ceiling of phrase-list matching, not a bug: paraphrase is unbounded. The decision
-to keep it out of scope, and the conditions that would reopen it, are in
-`docs/decisions/2026-10-20-paraphrase-ceiling.md`.
+At the 2026-10-20 baseline the three recovered rows were near-canonical phrasings
+that happened to overlap the phrase list. The 2026-10-25 structural additions
+move the dev half to 50% but the held-out half only to 8.3%, and none reaches a
+verdict. That is a ceiling of phrase-list and shape matching, not proof of
+paraphrase understanding: paraphrase is unbounded. The decision to keep it out of
+scope, and the conditions that would reopen it, are in
+`docs/decisions/2026-10-20-paraphrase-ceiling.md`; the strengthening decision is
+in `docs/decisions/2026-10-25-detection-strengthening.md`.
 
 ```
 node bench/paraphrase.js --tag=baseline
@@ -209,6 +250,14 @@ flagged 53 the guardrail allowed. Benign false positives were 1/26 each (Lemon
 Juice `noise` only; one guardrail block). Latency: Lemon Juice p50 0.22 ms
 in-process vs guardrail p50 1.4 s / p95 10.7 s on CPU.
 
+> These are the pre-strengthening numbers (v0.9.3 detector), committed as the
+> comparison snapshot. Re-scoring the same guardrail decisions with the
+> 2026-10-25 detector change: Lemon Juice flags 100%, recovers 100% and reaches
+> verdict level on 74.4% of the 195 attacks; all 55 guardrail escapes are flagged
+> and recovered, and the two attacks missed by both systems are gone. The
+> committed `results/` stay the baseline until re-analysed; see
+> `docs/decisions/2026-10-25-detection-strengthening.md`.
+
 This is a property of one pinned local configuration — a 4B quantised model is far
 weaker than the models NVIDIA recommends for these rails — not a measurement of
 NVIDIA's hosted guardrails, and a page fed directly into an input rail is a proxy
@@ -233,6 +282,10 @@ Setup, versions, per-family breakdown and limitations are in
 - Payload on its own line. Control-token and role-label patterns are
   line-anchored, so this framing is generous to the detector; a mid-sentence
   payload may score lower.
+- **Shape-coverage circularity.** The five structural patterns added on
+  2026-10-25 were derived from this corpus's misses, so the main-matrix gain
+  measures "documented shapes are recognised", not performance on unseen
+  prose. The paraphrase axis's held-out half (0% → 8.3%) is the honest check.
 
 ## Adding a technique
 
@@ -244,7 +297,11 @@ Setup, versions, per-family breakdown and limitations are in
 
 ## Next step
 
-Paraphrase coverage: 0% recovery is now the single largest gap, and it caps every
-technique at 50%. Small caps proved the loop (test → fix → measure → README);
-apply it to one paraphrase family next, then run garak against the llama.cpp
-pipeline with `bench/garak/`.
+The 2026-10-25 change recovered 100% of the main matrix, so that matrix can no
+longer show a shape-coverage delta — the paraphrase holdout is the remaining
+honest gap (8.3%). Next: one bounded structural experiment against the
+paraphrase dev half, then evaluate once on the held-out half and keep it only if
+it clears the ≥40% / ≤2% bar in `docs/decisions/2026-10-20-paraphrase-ceiling.md`.
+Separately, refresh `bench/nvidia-guardrails/` results after this change and run
+the guardrail comparison against a second local judge model before drawing any
+conclusion about the rail itself.

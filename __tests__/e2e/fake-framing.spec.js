@@ -40,12 +40,14 @@ test("distinct generic control tokens in one text node stay separate findings", 
   const result = await injectAndScan(page, "fake-syntax-tokens.html");
   const tokens = result.items.filter((i) => i.type === "control-token");
   expect(tokens).toHaveLength(6);
-  expect(tokens.map((i) => i.match).sort()).toEqual([
-    "<|tool calls end|>",
-    "<|user message begin|>",
-    "<sop>",
-    "<start_of_turn>",
-    "<｜begin▁of▁sentence｜>",
-    "[gMASK]",
-  ]);
+  expect(tokens.map((i) => i.match).sort()).toEqual(
+    [
+      "<|tool calls end|>",
+      "<|user message begin|>",
+      "<sop>",
+      "<start_of_turn>",
+      "<｜begin▁of▁sentence｜>",
+      "[gMASK]",
+    ].sort()
+  );
 });

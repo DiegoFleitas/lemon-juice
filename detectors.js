@@ -67,6 +67,8 @@
     ["\u0443", "y"], // Cyrillic у
     ["\u0445", "x"], // Cyrillic х
     ["\u0456", "i"], // Cyrillic і
+    ["\u0455", "s"], // Cyrillic ѕ (dze)
+    ["\u0131", "i"], // Turkish dotless ı
     ["\u03bf", "o"], // Greek ο (omicron)
     ["\u03b1", "a"], // Greek α (alpha)
     ["\u03c1", "p"], // Greek ρ (rho)
@@ -675,6 +677,33 @@
     /\brepeat\s+(?:the\s+)?(?:text|words?)\s+above\s+verbatim\b/i,
     /\bprint\s+your\s+(?:initial\s+)?instructions?\s+word\s+for\s+word\b/i,
     /\bencode\s+your\s+(?:instructions?|system\s+prompt)\s+(?:in|as)\s+base\s*64\b/i,
+    // Extraction variants seen in garak's sysprompt_extraction attacks.
+    /\b(?:what|which)\s+(?:are|were)\s+your\s+(?:initial|original|exact|starting)\s+(?:instructions?|prompts?)\b/i,
+    /\brepeat\s+(?:everything|(?:the\s+)?(?:text|instructions?))\s+(?:in\s+)?(?:the\s+)?system\s+prompt\b/i,
+    /\brepeat\s+the\s+above\s+text\b/i,
+    /\boutput\s+the\s+text\s+above\s+in\s+full\b/i,
+    /\bwhat\s+were\s+you\s+told\b/i,
+    /\b(?:encode|rot13|translate)\b[^.\n]{0,100}\b(?:system\s+(?:prompt|instructions?)|initial\s+(?:instructions?|prompt)|starting\s+instructions?|text\s+you\s+were\s+given)\b/i,
+    /\btranslate\s+your\s+(?:initial\s+)?instructions?\b/i,
+    /\bprint\s+your\s+system\s+message\b/i,
+    /\bconsole\.log\s*\(\s*systemPrompt\s*\)/i,
+    /\boutput\s+<system_prompt>/i,
+    /\boutput\s+initialization\s+string\b/i,
+    /\b(?:display|output)\s+(?:your\s+)?(?:system\s+configuration|starting\s+instructions?)\b/i,
+    /\bstart\s+your\s+answer\s+with\b/i,
+    /\brepeat\s+this\s+(?:entire\s+)?conversation\b/i,
+    /\bwhat\s+are\s+you\s+not\s+supposed\s+to\s+tell\b/i,
+    /\b(?:see|view|access)\s+(?:the\s+)?system\s+prompt\b/i,
+    /\bopposite\s+of\s+your\s+(?:system\s+)?instructions\b/i,
+    /\bcontinue\s+the\s+following\b[^.\n]{0,80}\bsystem\s+prompt\b/i,
+    /\brepeat\s+the\s+instructions\s+you\s+were\s+given\b/i,
+    /\bcomplete\s+this\s+sentence\b[^.\n]{0,80}\binstructed\b/i,
+
+    // --- Web injection / exfil commands ---
+    /\bprint\s+(?:the|this)\s+(?:following|markdown)\b[^.\n]{0,40}(?:!\[|image)/i,
+    /\bconcatenate\s+these\s+strings\b/i,
+    /\burl[- ]encoded\s+summary\b/i,
+    /\bjavascript:\s*(?:alert|document\.|window\.|fetch|eval|\S+\()/i,
 
     // --- Chain-of-thought (CoT) hijacking phrases (OWASP #10) ---
     // Legitimate in educational content but exploited to lower the model's guard:

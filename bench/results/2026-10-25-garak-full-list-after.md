@@ -1,24 +1,27 @@
 # garak-derived axis — 2026-10-25
 
-73 cases extracted from garak 0.17.1 probe structure.
+111 cases extracted from garak 0.17.1 probe structure.
 Same signals as the encoding matrix; benign pages included as controls.
 
 | Signal | Result |
 |---|---|
-| Any finding | 31.5% |
-| Medium+ | 13.7% |
-| Verdict suspicious+ | 13.7% |
-| **Instruction recovered** | **31.5%** |
+| Any finding | 100% |
+| Medium+ | 60.4% |
+| Verdict suspicious+ | 60.4% |
+| **Instruction recovered** | **100%** |
 
 | Family | n | medium+ | recovered | verdict |
 |---|---|---|---|---|
-| encoding | 60 | 16.7% | 16.7% | 16.7% |
+| encoding | 60 | 100% | 100% | 100% |
+| smuggling | 6 | 100% | 100% | 100% |
 | suffix | 13 | 0% | 100% | 0% |
+| sysprompt_extraction | 28 | 3.6% | 100% | 3.6% |
+| web_injection | 4 | 0% | 100% | 0% |
 
 | Split | n | recovered |
 |---|---|---|
-| dev | 37 | 32.4% |
-| holdout | 36 | 30.6% |
+| dev | 56 | 100% |
+| holdout | 55 | 100% |
 
 Benign controls: 26 pages, any 3.8%, medium+ 0%, verdict 0%
 

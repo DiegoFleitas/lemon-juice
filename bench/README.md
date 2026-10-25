@@ -159,31 +159,37 @@ node bench/paraphrase.js --tag=baseline
 
 ## garak-derived axis
 
-A second, separate axis reuses the _structure_ of garak 0.17.1 encoding and
-adversarial-suffix probes. The committed corpus
-(`bench/garak/corpus.jsonl`, 73 cases) is extracted offline; neither garak nor
-a model is needed to run it:
+A second, separate axis reuses the _structure_ of garak 0.17.1 probes. The
+committed corpus (`bench/garak/corpus.jsonl`, 111 cases) is extracted offline;
+neither garak nor a model is needed to run it:
 
 ```
 node bench/garak.js --tag=baseline
 ```
 
-Payload text is neutral, so no harmful probe base prompts are copied. The
-encoding family exercises base64, base32, ASCII85, plain hex, ROT13 and Atbash
-around two instruction payloads; the suffix family appends the GCG suffix list
-to a canonical instruction.
+Payload text is neutral, so no harmful probe base prompts are copied. Families:
+`encoding` (base64, base32, ASCII85, plain hex, ROT13, Atbash), `smuggling`
+(homoglyph, Unicode Tags, zero-width split), `suffix` (GCG suffix list on a
+canonical instruction), `sysprompt_extraction` (garak's static attack
+templates), and `web_injection` (Markdown/JS exfil commands with
+`example.invalid` domains).
 
-| Signal                | Baseline  | After decoders |
-| --------------------- | --------- | -------------- |
-| Instruction recovered | **31.5%** | **100%**       |
-| Encoding recovered    | 16.7%     | 100%           |
-| Suffix recovered      | 100%      | 100%           |
-| Benign verdict        | 0%        | 0%             |
+| Family               | Baseline recovered | After recovered | After verdict |
+| -------------------- | -----------------: | --------------: | ------------: |
+| encoding             |               100% |            100% |          100% |
+| smuggling            |              66.7% |            100% |          100% |
+| suffix               |               100% |            100% |            0% |
+| sysprompt_extraction |              17.9% |            100% |          3.6% |
+| web_injection        |                 0% |            100% |            0% |
 
-The suffix result is the interesting negative one: appending an adversarial
-suffix does not hide the instruction from a text scanner, so it does not change
-the verdict (0% both runs). The encoding result drove new base32, ASCII85,
-plain-hex, ROT13 and Atbash decoders.
+Benign verdicts stayed at 0%. The suffix result is the interesting negative
+one: appending an adversarial suffix does not hide the instruction from a text
+scanner, so it does not change the verdict. The sysprompt and web rows recover
+at LOW severity; they only reach a verdict when concealed.
+
+Dataset-backed latent-injection generators and the PromptInject generator are
+excluded: they need model/dataset dependencies that cannot be extracted
+offline. See `bench/garak/PROVENANCE.md`.
 
 ## Threats to validity
 

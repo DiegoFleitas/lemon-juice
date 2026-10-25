@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.9.0 - 2026-10-25
+
+- feat(popup): export findings as JSON or TXT (91f6eee)
+
 ## v0.8.1 - 2026-10-25
 
 - fix(detectors): ignore generic tokens in ROT13/Atbash decode (76376b3)

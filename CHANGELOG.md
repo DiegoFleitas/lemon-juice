@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.6.0 - 2026-10-25
+
+- chore(deps-dev): bump @eslint/js, @playwright/test, eslint, prettier (26963e9)
+- chore(deps): bump actions/checkout from 6.0.3 to 7.0.0 (fd56633)
+- Measure and document the paraphrase ceiling (#6) (e079129)
+- feat(detectors): detect fake chat-template syntax and model frames (#7) (71f360f)
+- Add detection benchmark and small-caps fix (#5) (1b1dd11)
+- docs: swap hero screenshot to png (c6948d4)
+- style(docs): drop em dashes and AI-writing tells from README (96952d6)
+- docs: correct claims the scoring change invalidated (1846aa8)
+- docs(agents): replace rotted line references with symbol names (784b8b4)
+
 ## v0.5.0 - 2026-08-03
 
 - docs: collapse the corroboration-scoring plan to a record (a53dfd5)

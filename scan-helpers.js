@@ -12,11 +12,11 @@
     scope.querySelectorAll("*").forEach((el) => {
       if (el.shadowRoot) collectRoots(el.shadowRoot, acc);
       if (el.tagName === "IFRAME") {
-        let doc = null;
+        let doc;
         try {
           doc = el.contentDocument;
         } catch {
-          doc = null;
+          // Cross-origin or detached frame; nothing to traverse.
         }
         if (doc && doc.body) collectRoots(doc, acc);
       }

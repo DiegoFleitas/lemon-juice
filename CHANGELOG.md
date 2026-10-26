@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.11.0 - 2026-10-26
+
+- feat: scan cross-origin iframes per frame (#17) (#21) (7e0372b)
+- docs: plan cross-origin iframe scanning (#20) (402168b)
+- chore: lint the packaged Firefox build with web-ext (#16) (9f60ff0)
+- feat: support Chrome alongside Firefox (#15) (c43575f)
+- docs: document where the docs live (#14) (6ee364b)
+- docs: add a Docs index line to the README (#13) (23169b1)
+- docs: update roadmap and extract limitations/scoring docs (#12) (282bc48)
+- Merge remote-tracking branch 'origin/main' (c6d26eb)
+- chore(opencode): remove leftover Joplin MCP entry (#11) (8e624dd)
+
 ## v0.10.0 - 2026-10-25
 
 - feat: strengthen detection from the guardrail escape analysis (#9) (c48d32b)

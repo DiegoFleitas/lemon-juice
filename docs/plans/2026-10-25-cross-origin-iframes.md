@@ -1,6 +1,11 @@
 # Cross-Origin Iframe Scanning Plan
 
-**Status:** Planned (2026-10-25). Not implemented. Tracked as issue #17.
+**Status:** Implemented (2026-10-26). Per-frame scanning, popup aggregation,
+frame-qualified target ids, the Chrome/refusal fallback, a verdict-parity pin and
+a two-origin e2e are all in place and green on Firefox and Chromium. The one
+open item is the first task below: confirming on a real temporary add-on that a
+Firefox `activeTab` injection actually reaches a cross-origin frame, which no
+CI browser can prove. Tracked as issue #17.
 
 **Goal:** scan cross-origin iframe documents on Firefox using only `activeTab` +
 `scripting`, so a payload inside an embedded third-party frame is no longer
@@ -55,17 +60,20 @@ frame's origin there, and this project will not add host permissions.
 
 - [ ] Manual Firefox verification: temporary add-on + page embedding a
       cross-origin iframe with a hidden payload; record the allFrames result.
-- [ ] `collectRoots(root, { skipIframes })` + unit tests for both modes.
-- [ ] `scan.js` per-frame mode (flag, skipIframes, no iframe overlays from top).
-- [ ] Popup: flag injection, allFrames file injection, per-frame read-back.
-- [ ] `mergeFrameResults` + unit tests (indices, cap, severity order, verdict
+      **Still outstanding** — CI has no extension host, so the `activeTab` frame
+      reach below is not yet proven on a real install.
+- [x] `collectRoots(root, { skipIframes })` + unit tests for both modes.
+- [x] `scan.js` per-frame mode (flag, skipIframes, no iframe overlays from top).
+- [x] Popup: flag injection, allFrames file injection, per-frame read-back.
+- [x] `mergeFrameResults` + unit tests (indices, cap, severity order, verdict
       parity, frameId tagging).
-- [ ] Frame-aware `scrollTo` and cycle handling for folded rows across frames.
-- [ ] Chrome behaviour check + fallback path.
-- [ ] e2e: two-origin fixture (two local HTTP origins) asserting the
+- [x] Frame-aware `scrollTo` and cycle handling for folded rows across frames.
+- [x] Chrome behaviour check + fallback path. (Fallback implemented and exercised
+      through Chromium; the real-Chrome check folds into the manual run above.)
+- [x] e2e: two-origin fixture (two local HTTP origins) asserting the
       cross-origin payload is found once, and same-origin frames are not
       double-scanned.
-- [ ] Docs: `docs/limitations.md` (Firefox scans, Chrome still top-origin only),
+- [x] Docs: `docs/limitations.md` (Firefox scans, Chrome still top-origin only),
       README limitation bullet, roadmap tick.
 
 ## Acceptance

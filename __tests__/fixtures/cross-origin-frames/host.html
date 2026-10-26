@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Two-origin frame host</title>
+  </head>
+  <body>
+    <p>Host page with no payload of its own.</p>
+    <!-- Same origin: reachable by contentDocument today, and the reason
+         per-frame scanning must skip iframes instead of double-reporting. -->
+    <iframe
+      id="same-origin"
+      src="same-origin-frame.html"
+      width="300"
+      height="80"
+    ></iframe>
+    <!-- Second origin: only reachable when every frame is scanned separately.
+         {{CROSS_ORIGIN_ORIGIN}} is substituted by the e2e server, since the
+         second origin's port is only known at runtime. -->
+    <iframe
+      id="cross-origin"
+      src="{{CROSS_ORIGIN_ORIGIN}}/cross-origin-frame.html"
+      width="300"
+      height="80"
+    ></iframe>
+  </body>
+</html>

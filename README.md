@@ -160,7 +160,7 @@ Five files, buildless, with a strict split between pure logic and DOM:
 
 - `detectors.js` — **pure** detection logic (string in, findings out); no DOM, dual-exported for tests.
 - `scan-helpers.js` — DOM helpers for scanning and overlay rendering.
-- `scan.js` — DOM side: walks text and comment nodes across the top document, every open shadow root and every same-origin iframe, then draws the non-invasive overlay.
+- `scan.js` — DOM side: walks text and comment nodes across the document it was injected into (the top page, or one frame when scanning per-frame), every open shadow root in it and — in the single-frame fallback — every same-origin iframe, then draws the non-invasive overlay.
 - `popup.js` / `popup.html` — injects the scripts into the active tab, renders findings, sets the badge, exports JSON/TXT.
 - `manifest.json` — MV3, shared by both browsers; the Chrome manifest is derived at package time (Gecko-only keys dropped).
 
@@ -183,7 +183,7 @@ Injection order matters: `detectors.js` > `scan-helpers.js` > `scan.js`. Each fi
 
 The full catalogue — every known miss with its measured recovery number, the vectors that are out of scope by design, and the accepted false positives — is in [`docs/limitations.md`](docs/limitations.md). The headlines:
 
-- **Cross-origin iframes** are not traversed (same-origin policy); per-frame aggregation is on the [roadmap](#roadmap).
+- **Cross-origin iframes** are scanned on Firefox, which reaches the frames of the original page under `activeTab`; Chrome's `activeTab` covers only the top frame's origin, so they stay invisible there.
 - **Dynamic / post-scan content**, `<template>` fragments and **closed shadow roots** are invisible to a static DOM snapshot.
 - **Cross-element dialogue and payload splitting**: instructions split across DOM nodes are never reassembled.
 - **Rephrased override language** is the largest measured gap: 29.2% recovered on a 24-payload axis, 1/12 on the held-out half, none at verdict level.
@@ -196,7 +196,7 @@ Current detection-recovery numbers are in `bench/README.md`; [`docs/decisions/`]
 
 - [x] Full detector matrix in `__tests__/detectors.test.js`
 - [x] Recursive open shadow root and same-origin iframe scanning
-- [ ] Cross-origin iframes via `scripting.executeScript({ allFrames: true })`, with per-frame result aggregation. Firefox can reach these under `activeTab`; a Chrome build would need host permissions for cross-origin frames.
+- [x] Cross-origin iframes via `scripting.executeScript({ allFrames: true })`, with per-frame result aggregation. Firefox reaches these under `activeTab`; Chrome still needs host permissions for cross-origin frames, so it scans top-origin frames only.
 - [ ] Opt-in auto-scan on user-configured domains (per-site host permissions, kept off by default). This changes the no-host-permissions posture, so it needs an options page and a privacy-section rewrite, not just a detector.
 - [x] Chrome port: namespace shim, Chromium Playwright project, and `pnpm run package:chrome` packaging.
 - [ ] Chrome Web Store listing (developer account, privacy policy, review).

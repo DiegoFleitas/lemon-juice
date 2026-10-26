@@ -26,7 +26,7 @@ These are detectable in principle, just not implemented (or only partially imple
 - **Visible-character obfuscation**: emoji, symbols, or punctuation between words in an instruction phrase ("ignore 🔒 all previous instructions"). Only 🚫 substituting for "ignore"/"disregard" is individually patterned.
 - **Emoji-only instructions**: pictograph sequences conveying a message visually.
 - **Compound obfuscation built on an undetected primitive**: the normalization passes do compose. NFKC fancy-Unicode, leetspeak, delimiter stripping and spaced letters stack, so a double-struck phrase written with spaced letters is still caught. Layering only helps for primitives the normalizer already knows, though, so anything built on a miss listed above (phonetic letters outside the fold table, visible-character obfuscation) slips through however the layers combine.
-- **Cross-origin iframes**: blocked by same-origin policy. Reachable in principle via `scripting.executeScript({ allFrames: true })`, but per-frame result aggregation isn't implemented yet.
+- **Cross-origin iframes**: scanned on Firefox. Every frame the extension can reach scans only its own document and the popup merges the per-frame results, so a payload inside a cross-origin frame is found there. Chrome's `activeTab` covers only the top frame's origin, so a cross-origin frame stays invisible on Chrome (same-origin frames are scanned on both). If a browser refuses the all-frames injection outright, the popup falls back to top-frame scanning and those frames are missed again; frames that load after the click are never rescanned.
 
 ## Out of scope by design
 

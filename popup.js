@@ -26,6 +26,173 @@ function setExportEnabled(enabled) {
 // clicked. Each item gets a cycling index into its targetIds array.
 const clickCycles = new Map();
 
+// Mirrors scan.js's cap so a merged multi-frame page cannot post more work to
+// the popup than a single-frame one.
+const MAX_ITEMS = 200;
+const SEV_ORDER = { high: 0, medium: 1, low: 2 };
+
+// --- per-frame aggregation -------------------------------------------------
+// A popup page script cannot import detectors.js, so the page-verdict rules are
+// reimplemented here for the merged (multi-frame) item list. This duplication is
+// deliberate and pinned by __tests__/popup.test.js, which runs these against
+// PIScanner.pageVerdict/worstSeverity/corroborationCount on the same inputs —
+// if the two ever disagree, CI fails instead of the badge silently drifting.
+function isCorroborated(item) {
+  return !!(item.corroboration?.length || item.contextual?.length);
+}
+
+function corroborationCount(items) {
+  return items.reduce(
+    (n, i) => n + (i.corroboration?.length || 0) + (i.contextual?.length || 0),
+    0
+  );
+}
+
+function pageVerdict(items) {
+  if (!items.length) return "clean";
+  const corroborated = items.filter(isCorroborated);
+  if (corroborated.some((i) => i.severity === "high")) return "likely-injection";
+  if (corroborated.length >= 2) return "likely-injection";
+  if (corroborated.length) return "suspicious";
+  if (items.some((i) => i.severity === "high")) return "suspicious";
+  return "noise";
+}
+
+function worstSeverity(items) {
+  if (items.some((i) => i.severity === "high")) return "high";
+  if (items.some((i) => i.severity === "medium")) return "medium";
+  return items.length ? "low" : null;
+}
+
+function itemTargets(item) {
+  if (item.targetIds && item.targetIds.length) return item.targetIds;
+  return item.targetId ? [item.targetId] : [];
+}
+
+// Combines the per-frame summaries from scripting.executeScript({allFrames}) into
+// the single summary shape the rest of this file renders and exports.
+//
+// Target ids are namespaced per frame ("<frameId>:<data-piscan-id>"): scan.js
+// numbers elements from 1 in every frame, so without a frame qualifier two
+// frames' findings would both claim "pi-1" and a click could scroll to the wrong
+// frame. scrollTo() splits the qualifier back off.
+//
+// `frames` is [{ frameId, result }] as returned by the browser; entries whose
+// result is null (a frame the scanner could not run in, e.g. about:blank or a
+// frame Chrome's activeTab cannot reach) are skipped.
+function mergeFrameResults(frames) {
+  const present = (frames || []).filter((f) => f && f.result);
+  // Frame 0 is the top document, which is where the page-level metadata and the
+  // URL come from. Without it (impossible in practice) fall back to whatever
+  // frame reported first rather than dropping the URL entirely.
+  const top = present.find((f) => (f.frameId ?? 0) === 0) || present[0];
+
+  const items = [];
+  for (const frame of present) {
+    const frameId = frame.frameId ?? 0;
+    for (const item of frame.result.items || []) {
+      const ids = itemTargets(item).map((id) => `${frameId}:${id}`);
+      items.push({
+        ...item,
+        frameId,
+        ...(ids.length ? { targetId: ids[0], targetIds: ids } : {}),
+      });
+    }
+  }
+
+  // Dedupe across frames: the same finding (same groupKey + context) surfaced by
+  // more than one frame is one finding — e.g. the same ad iframe loaded twice.
+  // Every target id is kept so the row can still cycle to each occurrence.
+  const byIdentity = new Map();
+  const unique = [];
+  for (const item of items) {
+    const key = `${item.groupKey ?? item.type}\u0000${item.context ?? ""}`;
+    const existing = byIdentity.get(key);
+    if (!existing) {
+      byIdentity.set(key, item);
+      unique.push(item);
+      continue;
+    }
+    existing.matchCount = (existing.matchCount || 1) + (item.matchCount || 1);
+    existing.targetIds = [...(existing.targetIds || []), ...(item.targetIds || [])];
+    if (SEV_ORDER[item.severity] < SEV_ORDER[existing.severity])
+      existing.severity = item.severity;
+  }
+
+  unique.sort((a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity]);
+  unique.forEach((item, i) => (item.index = i + 1));
+  const capped = unique.slice(0, MAX_ITEMS);
+
+  return {
+    url: top?.result?.url || "",
+    count: capped.length,
+    worst: worstSeverity(capped),
+    verdict: pageVerdict(capped),
+    corroborationCount: corroborationCount(capped),
+    bySeverity: {
+      high: capped.filter((i) => i.severity === "high").length,
+      medium: capped.filter((i) => i.severity === "medium").length,
+      low: capped.filter((i) => i.severity === "low").length,
+    },
+    framesScanned: present.length,
+    items: capped,
+  };
+}
+
+// Injects into every frame the browser lets us address, then merges the
+// per-frame summaries. Firefox under activeTab can reach frames that were part
+// of the original page (bug 1653408), so cross-origin iframes are scanned
+// there; Chrome's activeTab only covers the top frame's origin, so
+// cross-origin frames are simply absent from the results (and the merge still
+// works). Scanning is still a snapshot taken on click.
+async function scanAllFrames(tab) {
+  // 1) Put every reachable frame into per-frame mode before the scanner loads,
+  //    so scan.js does not also walk descendant frames (that would double-report
+  //    every same-origin iframe finding).
+  await api.scripting.executeScript({
+    target: { tabId: tab.id, allFrames: true },
+    func: () => {
+      window.__PISCAN_PER_FRAME__ = true;
+    },
+  });
+  // 2) Same injection order as the single-frame path (see AGENTS.md).
+  await api.scripting.executeScript({
+    target: { tabId: tab.id, allFrames: true },
+    files: ["detectors.js", "scan-helpers.js", "scan.js"],
+  });
+  // 3) Read back every frame's summary; the result array carries frameId.
+  const injected = await api.scripting.executeScript({
+    target: { tabId: tab.id, allFrames: true },
+    func: () => window.__PIScanResult || null,
+  });
+  return mergeFrameResults(
+    injected.map((entry) => ({ frameId: entry?.frameId ?? 0, result: entry?.result }))
+  );
+}
+
+// The pre-per-frame path: one injection into the tab's top frame, whose scanner
+// walks same-origin iframes itself. Used when this browser refuses allFrames
+// outright, so a page that used to scan still scans exactly as it did before.
+async function scanTopFrame(tab) {
+  // A partial allFrames attempt may have left the flag set in the top frame;
+  // clear it so this rescan keeps the recursive iframe walk.
+  await api.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: () => {
+      window.__PISCAN_PER_FRAME__ = false;
+    },
+  });
+  await api.scripting.executeScript({
+    target: { tabId: tab.id },
+    files: ["detectors.js", "scan-helpers.js", "scan.js"],
+  });
+  const injected = await api.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: () => window.__PIScanResult || null,
+  });
+  return mergeFrameResults([{ frameId: 0, result: injected[0]?.result }]);
+}
+
 async function activeTab() {
   const [tab] = await api.tabs.query({ active: true, currentWindow: true });
   return tab;
@@ -51,24 +218,23 @@ async function scan() {
 
   let result;
   try {
-    // 1) Inject the pure detectors, then helpers, then the DOM scanner (order matters).
-    await api.scripting.executeScript({
-      target: { tabId: tab.id },
-      files: ["detectors.js", "scan-helpers.js", "scan.js"],
-    });
-    // 2) Read back the summary the scanner stashed on window.
-    const injected = await api.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: () => window.__PIScanResult || null,
-    });
-    result = injected[0]?.result;
+    result = await scanAllFrames(tab);
   } catch {
-    // Injection can reject if the tab closed mid-scan, navigated away, or the
-    // page/CSP blocks content scripts (e.g. addons.mozilla.org, some PDF
-    // viewers) — none of that is this extension's fault, so just say so
-    // instead of leaving "Scanning…" stuck with an unhandled rejection.
-    els.status.textContent = "Can't scan this page.";
-    return;
+    // Some browsers/builds refuse allFrames outright (and a frame can reject
+    // mid-injection). Degrade to the single-frame scan instead of surfacing an
+    // error: on Chrome that is the only reachable path anyway, and on Firefox it
+    // is exactly what shipped before this feature. Nothing about the page is the
+    // user's fault either way.
+    try {
+      result = await scanTopFrame(tab);
+    } catch {
+      // Injection can reject if the tab closed mid-scan, navigated away, or the
+      // page/CSP blocks content scripts (e.g. addons.mozilla.org, some PDF
+      // viewers) — none of that is this extension's fault, so just say so
+      // instead of leaving "Scanning…" stuck with an unhandled rejection.
+      els.status.textContent = "Can't scan this page.";
+      return;
+    }
   }
 
   render(result);
@@ -78,20 +244,29 @@ async function scan() {
   setBadge(result, tab.id);
 }
 
-async function scrollTo(targetId) {
+// `target` is a frame-qualified target id from mergeFrameResults
+// ("<frameId>:<data-piscan-id>"); a bare id is still accepted. Address the frame
+// that owns the element, so a finding inside an iframe scrolls that iframe
+// rather than searching the top document for an id it does not contain.
+async function scrollTo(target) {
   const tab = await activeTab();
   if (!tab) return;
+  const qualified = /^(\d+):(.+)$/.exec(String(target));
+  const frameId = qualified ? Number(qualified[1]) : null;
+  const id = qualified ? qualified[2] : target;
   try {
     await api.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: (id) => {
-        // Search the top document, open shadow roots, and same-origin
-        // iframes for a matching data-piscan-id — copies the logic from
-        // scan-helpers.js's deepQuerySelector inline rather than relying
-        // on globalThis.__PIScannerHelpers, because executeScript func
+      target:
+        frameId === null ? { tabId: tab.id } : { tabId: tab.id, frameIds: [frameId] },
+      func: (targetId) => {
+        // Search this frame's document, open shadow roots, and same-origin
+        // iframes (nested frames that were allowed to be traversed) for a
+        // matching data-piscan-id — copies the logic from scan-helpers.js's
+        // deepQuerySelector inline rather than relying on
+        // globalThis.__PIScannerHelpers, because executeScript func
         // runs in a separate execution environment from file injections.
         function find(root) {
-          let found = root.querySelector(`[data-piscan-id="${CSS.escape(id)}"]`);
+          let found = root.querySelector(`[data-piscan-id="${CSS.escape(targetId)}"]`);
           if (found) return found;
           const scope = root.nodeType === Node.DOCUMENT_NODE ? root.body : root;
           if (!scope) return null;
@@ -118,7 +293,7 @@ async function scrollTo(targetId) {
         const el = find(document);
         if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
       },
-      args: [targetId],
+      args: [id],
     });
   } catch {
     // tab closed or navigated mid-scroll
@@ -349,6 +524,7 @@ function exportSafeFinding(item) {
   delete copy.groupKey;
   delete copy.index;
   delete copy.pattern;
+  delete copy.frameId;
   return copy;
 }
 
@@ -472,4 +648,8 @@ if (typeof module !== "undefined" && module.exports)
     buildExportJson,
     buildExportText,
     exportFilename,
+    mergeFrameResults,
+    pageVerdict,
+    worstSeverity,
+    corroborationCount,
   };

@@ -140,9 +140,14 @@ Five files, strict separation between pure logic and DOM:
   Closed shadow roots and cross-origin iframes are unreachable by design
   (spec / same-origin policy respectively) — `collectRoots` silently skips
   them rather than throwing.
-- **`scan.js`** — The DOM side. Calls `collectRoots(document)` once per scan
-  and runs both passes over every collected root (top document, each open
-  shadow root, each same-origin iframe document): Pass 1 walks text **and
+- **`scan.js`** — The DOM side. Calls `collectRoots` once per scan and runs
+  both passes over every collected root. By default that is the top document,
+  each open shadow root and each same-origin iframe document; in **per-frame
+  mode** (the extension flagged this frame with `window.__PISCAN_PER_FRAME__`,
+  because every reachable frame was injected separately) the frame passes
+  `{ skipIframes: true }` and scans only its own document, so same-origin
+  iframes are not reported twice (once from the parent's traversal, once from
+  their own scan). Pass 1 walks text **and
   comment** nodes (`NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT` — a
   `Comment` node's `.nodeValue`/`.parentElement` shape matches `Text`
   exactly, so no branching needed; findings get an `inComment: true` flag
@@ -170,9 +175,11 @@ Five files, strict separation between pure logic and DOM:
   in `data-piscan-saved`, undone by `clearMarks`) so the marker has a visible
   box to anchor to, but it **never** rewrites text color. A serializable
   summary is stashed on `window.__PIScanResult`. `data-piscan-id` values are
-  unique across the whole page (one counter shared across all roots), which
-  lets `popup.js`'s `scrollTo` re-locate an element by id later via
-  `deepQuerySelector`, and links each overlay marker to its element via
+  unique within one document's scan (one counter shared across all roots), and
+  in per-frame mode every frame numbers from 1, so `popup.js`'s
+  `mergeFrameResults` qualifies them as `<frameId>:<id>` — each popup id still
+  addresses exactly one element. That is what lets `scrollTo` re-locate an
+  element in its owning frame, and links each overlay marker to its element via
   `data-piscan-for`.
 - **`popup.js` / `popup.html`** — On popup open, injects `detectors.js` then
   `scan-helpers.js` then `scan.js` into the active tab via
@@ -190,13 +197,18 @@ at the top of its IIFE.
 
 **Permissions model:** only `activeTab` + `scripting` — no host permissions.
 Scanning only ever happens on the tab active when the user clicks the
-toolbar icon, and only for that one interaction. This same-origin-only
-posture is also why iframe traversal stops at `contentDocument` access
-(reachable without new permissions) rather than injecting into every frame
-via `scripting.executeScript({ allFrames: true })`, which would reach
-cross-origin iframes too but needs per-frame result aggregation in
-`popup.js` — not implemented; see the shadow-DOM/iframe limitations in
-[`docs/limitations.md`](docs/limitations.md).
+toolbar icon, and only for that one interaction. Frames are reached with
+`scripting.executeScript({ allFrames: true })`: on Firefox `activeTab` covers
+the frames that were part of the original page, so cross-origin frames are
+scanned, while Chrome's `activeTab` only covers the top frame's origin and the
+cross-origin frames are simply absent from the results. If a browser refuses
+the all-frames injection, `popup.js` falls back to the pre-per-frame
+top-frame scan (whose `contentDocument` traversal reaches same-origin frames
+only). `mergeFrameResults` in `popup.js` combines the per-frame summaries,
+frame-qualifies target ids and re-derives the verdict; because a popup page
+cannot import `detectors.js`, those verdict rules are duplicated there and
+pinned to `detectors.js` by a parity test in `__tests__/popup.test.js`. See
+the iframe limitation in [`docs/limitations.md`](docs/limitations.md).
 
 ## Adding a new detector
 

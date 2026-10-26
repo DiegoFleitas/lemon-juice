@@ -12,8 +12,9 @@
     "bench": "node bench/run.js",
     "bench:garak": "node bench/garak.js",
     "bench:paraphrase": "node bench/paraphrase.js",
-    "package": "mkdir -p dist && zip -r dist/lemon-juice.zip manifest.json popup.html detectors.js scan-helpers.js scan.js popup.js icons/",
+    "package": "node scripts/package-firefox.js && cd dist/firefox && zip -r ../lemon-juice.zip manifest.json popup.html popup.js detectors.js scan-helpers.js scan.js icons",
     "package:chrome": "node scripts/package-chrome.js",
+    "lint:extension": "web-ext lint --source-dir dist/firefox",
     "check:packages": "node scripts/check-packages.js",
     "release": "node scripts/release.js",
     "test:e2e": "playwright test"
@@ -22,6 +23,7 @@
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.62.1",
     "eslint": "^10.8.0",
-    "prettier": "^3.9.6"
+    "prettier": "^3.9.6",
+    "web-ext": "10.8.0"
   }
 }

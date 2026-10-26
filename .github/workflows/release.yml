@@ -36,6 +36,9 @@ jobs:
       - name: Build extension package
         run: pnpm run package
 
+      - name: Lint extension manifest (web-ext)
+        run: pnpm run lint:extension
+
       - name: Build Chrome extension package
         run: pnpm run package:chrome
 

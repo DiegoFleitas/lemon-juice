@@ -4,21 +4,39 @@
   const MARK_ATTR = "data-piscan-mark";
   const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE"]);
 
-  function collectRoots(root, acc) {
+  // Collects the document roots a scan should walk: the given root, every open
+  // shadow root, and (by default) every same-origin iframe document.
+  //
+  // `options.skipIframes` stops the descent at iframe boundaries, which is what
+  // per-frame scanning needs: when every frame scans only its own document,
+  // traversing same-origin iframes from the top would report each of their
+  // findings twice (once from the top document, once from the frame itself).
+  // Shadow roots are still collected either way — they are not separate frames.
+  //
+  // The second argument is either an accumulator array (internal recursion, and
+  // the pre-per-frame signature) or an options object, so both
+  // `collectRoots(document)` and `collectRoots(document, { skipIframes: true })`
+  // work.
+  function collectRoots(root, acc, options) {
+    if (acc && !Array.isArray(acc)) {
+      options = acc;
+      acc = [];
+    }
+    options = options || {};
     acc = acc || [];
     acc.push(root);
     const scope = root.nodeType === Node.DOCUMENT_NODE ? root.body : root;
     if (!scope) return acc;
     scope.querySelectorAll("*").forEach((el) => {
-      if (el.shadowRoot) collectRoots(el.shadowRoot, acc);
-      if (el.tagName === "IFRAME") {
+      if (el.shadowRoot) collectRoots(el.shadowRoot, acc, options);
+      if (!options.skipIframes && el.tagName === "IFRAME") {
         let doc;
         try {
           doc = el.contentDocument;
         } catch {
           // Cross-origin or detached frame; nothing to traverse.
         }
-        if (doc && doc.body) collectRoots(doc, acc);
+        if (doc && doc.body) collectRoots(doc, acc, options);
       }
     });
     return acc;

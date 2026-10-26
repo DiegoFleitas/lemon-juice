@@ -20,7 +20,13 @@ const {
   buildExportJson,
   buildExportText,
   exportFilename,
+  mergeFrameResults,
+  pageVerdict,
+  worstSeverity,
+  corroborationCount,
 } = require("../popup.js");
+
+const PIScanner = require("../detectors.js");
 
 const EXPORT_FIXTURE = {
   url: "https://example.com/page",
@@ -385,4 +391,201 @@ test("resetStatus: clears a stale verdict class", () => {
   const stub = { className: "verdict-likely-injection" };
   resetStatus(stub);
   assert.equal(stub.className, "");
+});
+
+// --- per-frame aggregation -------------------------------------------------
+
+function frameFinding(overrides = {}) {
+  return {
+    type: "invisible",
+    severity: "medium",
+    name: "ZERO WIDTH SPACE",
+    hex: "U+200B",
+    groupKey: "invisible:U+200B",
+    context: "Zero width space",
+    targetId: "pi-1",
+    targetIds: ["pi-1"],
+    index: 1,
+    ...overrides,
+  };
+}
+
+function frameResult(items, url = "https://example.com/page") {
+  return { url, count: items.length, items };
+}
+
+test("mergeFrameResults: tags items with their frame and qualifies target ids", () => {
+  const merged = mergeFrameResults([
+    { frameId: 0, result: frameResult([frameFinding({ context: "top" })]) },
+    {
+      frameId: 7,
+      result: frameResult(
+        [frameFinding({ context: "cross-origin frame", targetId: "pi-1" })],
+        "https://other.example/frame"
+      ),
+    },
+  ]);
+  assert.equal(merged.count, 2);
+  const inFrame = merged.items.find((i) => i.frameId === 7);
+  assert.equal(inFrame.targetId, "7:pi-1");
+  assert.deepEqual(inFrame.targetIds, ["7:pi-1"]);
+  // The page URL is the top document's, not whichever frame reported last.
+  assert.equal(merged.url, "https://example.com/page");
+  assert.equal(merged.framesScanned, 2);
+});
+
+test("mergeFrameResults: frames without a frameId are treated as the top frame", () => {
+  const merged = mergeFrameResults([{ result: frameResult([frameFinding()]) }]);
+  assert.equal(merged.items[0].frameId, 0);
+  assert.equal(merged.items[0].targetId, "0:pi-1");
+});
+
+test("mergeFrameResults: skips frames where the scanner reported null", () => {
+  const merged = mergeFrameResults([
+    { frameId: 0, result: frameResult([frameFinding()]) },
+    { frameId: 4, result: null },
+  ]);
+  assert.equal(merged.count, 1);
+  assert.equal(merged.framesScanned, 1);
+});
+
+test("mergeFrameResults: empty input is a clean scan", () => {
+  const merged = mergeFrameResults([]);
+  assert.equal(merged.verdict, "clean");
+  assert.equal(merged.count, 0);
+  assert.equal(merged.url, "");
+  assert.deepEqual(merged.bySeverity, { high: 0, medium: 0, low: 0 });
+  assert.equal(merged.framesScanned, 0);
+});
+
+test("mergeFrameResults: re-sorts by severity and re-indexes across frames", () => {
+  const merged = mergeFrameResults([
+    {
+      frameId: 0,
+      result: frameResult([frameFinding({ severity: "low", context: "a" })]),
+    },
+    {
+      frameId: 2,
+      result: frameResult([
+        frameFinding({ severity: "high", context: "b" }),
+        frameFinding({ severity: "medium", context: "c" }),
+      ]),
+    },
+  ]);
+  assert.deepEqual(
+    merged.items.map((i) => i.severity),
+    ["high", "medium", "low"]
+  );
+  assert.deepEqual(
+    merged.items.map((i) => i.index),
+    [1, 2, 3]
+  );
+  assert.equal(merged.worst, "high");
+  assert.deepEqual(merged.bySeverity, { high: 1, medium: 1, low: 1 });
+});
+
+test("mergeFrameResults: the same finding from two frames is deduped, keeping both ids", () => {
+  // e.g. the same ad iframe loaded twice: one finding, but clickable in both.
+  const merged = mergeFrameResults([
+    { frameId: 0, result: frameResult([frameFinding({ matchCount: 2 })]) },
+    { frameId: 5, result: frameResult([frameFinding({ matchCount: 3 })]) },
+  ]);
+  assert.equal(merged.count, 1);
+  assert.equal(merged.items[0].matchCount, 5);
+  assert.deepEqual(merged.items[0].targetIds, ["0:pi-1", "5:pi-1"]);
+});
+
+test("mergeFrameResults: same groupKey with different context stays two findings", () => {
+  const merged = mergeFrameResults([
+    { frameId: 0, result: frameResult([frameFinding({ context: "first" })]) },
+    { frameId: 3, result: frameResult([frameFinding({ context: "second" })]) },
+  ]);
+  assert.equal(merged.count, 2);
+});
+
+test("mergeFrameResults: caps the merged list at MAX_ITEMS (200) like scan.js", () => {
+  const many = Array.from({ length: 250 }, (_, i) =>
+    frameFinding({ context: `ctx-${i}`, targetId: `pi-${i + 1}` })
+  );
+  const merged = mergeFrameResults([{ frameId: 0, result: frameResult(many) }]);
+  assert.equal(merged.items.length, 200);
+  assert.equal(merged.count, 200);
+  assert.deepEqual(
+    merged.items.map((i) => i.index),
+    Array.from({ length: 200 }, (_, i) => i + 1)
+  );
+});
+
+test("mergeFrameResults: does not mutate the per-frame results it was given", () => {
+  const item = frameFinding();
+  const original = { ...item };
+  mergeFrameResults([{ frameId: 9, result: frameResult([item]) }]);
+  assert.deepEqual(item, original);
+});
+
+// The popup cannot import detectors.js, so its verdict rules are a
+// reimplementation. This is the pin: if either copy drifts, CI fails.
+function stubFinding(severity, corroborated) {
+  return {
+    type: "invisible",
+    severity,
+    corroboration: corroborated ? [{ type: "control-token", severity: "high" }] : [],
+    contextual: [],
+  };
+}
+
+test("verdict parity: pageVerdict/worstSeverity/corroborationCount match detectors.js", () => {
+  // Exhaustive over list lengths 0-3 x severities x corroborated/not.
+  const sev = ["low", "medium", "high"];
+  const cases = [[]];
+  for (let n = 1; n <= 3; n++) {
+    for (const s of sev) {
+      cases.push(Array.from({ length: n }, () => stubFinding(s, false)));
+      cases.push(Array.from({ length: n }, () => stubFinding(s, true)));
+    }
+  }
+  for (const items of cases) {
+    assert.equal(
+      pageVerdict(items),
+      PIScanner.pageVerdict(items),
+      `pageVerdict for ${items.length} items`
+    );
+    assert.equal(
+      worstSeverity(items),
+      PIScanner.worstSeverity(items),
+      `worstSeverity for ${items.length} items`
+    );
+    assert.equal(
+      corroborationCount(items),
+      PIScanner.corroborationCount(items),
+      `corroborationCount for ${items.length} items`
+    );
+  }
+});
+
+test("mergeFrameResults: recomputed verdict matches detectors.js on the merged items", () => {
+  const merged = mergeFrameResults([
+    {
+      frameId: 0,
+      result: frameResult([
+        frameFinding({
+          type: "unicode-tag",
+          severity: "high",
+          groupKey: "unicode-tag:U+E0041",
+          context: "tag payload",
+          corroboration: [{ type: "instruction-phrase", severity: "low" }],
+        }),
+      ]),
+    },
+    {
+      frameId: 6,
+      result: frameResult([
+        frameFinding({ context: "lone zero width space", severity: "medium" }),
+      ]),
+    },
+  ]);
+  assert.equal(merged.verdict, PIScanner.pageVerdict(merged.items));
+  assert.equal(merged.corroborationCount, PIScanner.corroborationCount(merged.items));
+  assert.equal(merged.worst, PIScanner.worstSeverity(merged.items));
+  assert.equal(merged.verdict, "likely-injection");
 });

@@ -46,8 +46,15 @@
       el.dataset.piscanSaved = JSON.stringify(savedOverrides);
   }
 
+  // Set by popup.js before injecting, in every frame it can reach. In this mode
+  // the injection hit each frame separately, so a frame must scan only its own
+  // document and leave descendant iframes to themselves — otherwise every
+  // same-origin iframe finding is reported twice (from the top document's
+  // traversal and from the frame's own scan).
+  const PER_FRAME = globalThis.__PISCAN_PER_FRAME__ === true;
+
   function runScan() {
-    const roots = collectRoots(document);
+    const roots = collectRoots(document, PER_FRAME ? { skipIframes: true } : undefined);
     roots.forEach((root) => clearMarks(root));
 
     const items = [];

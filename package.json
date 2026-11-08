@@ -8,7 +8,7 @@
   "scripts": {
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "test": "node --test '__tests__/**/*.test.js'",
+    "test": "node --test",
     "bench": "node bench/run.js",
     "bench:garak": "node bench/garak.js",
     "bench:paraphrase": "node bench/paraphrase.js",

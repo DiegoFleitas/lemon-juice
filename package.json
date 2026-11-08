@@ -17,7 +17,8 @@
     "lint:extension": "web-ext lint --source-dir dist/firefox",
     "check:packages": "node scripts/check-packages.js",
     "release": "node scripts/release.js",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "scan:opengrep": "opengrep scan --config=.opengrep/lemon-juice.yaml --no-rewrite-rule-ids ."
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -1,0 +1,101 @@
+# Custom rules for lemon-juice: a Firefox MV3 extension that injects content
+# scripts and reads hostile page content, so its invariants differ from a
+# generic web app. Each rule encodes one of those invariants.
+rules:
+  - id: lj-dynamic-code-execution
+    languages: [javascript, typescript]
+    message: >-
+      Dynamic code execution via eval/new Function. Page content is
+      attacker-controlled in this extension; no string from the DOM may ever
+      reach an evaluator.
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - pattern: eval(...)
+          - pattern: new Function(...)
+          - pattern: setTimeout("...", ...)
+          - pattern: setInterval("...", ...)
+    metadata:
+      category: security
+      subcategory: [vuln]
+      confidence: HIGH
+      cwe: ["CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code"]
+
+  - id: lj-html-injection-sink
+    languages: [javascript, typescript]
+    message: >-
+      HTML sink. Confirm the assigned value is built from constants, never from
+      scanned page text.
+    severity: WARNING
+    patterns:
+      - pattern-either:
+          - pattern: $EL.innerHTML = $VALUE
+          - pattern: $EL.outerHTML = $VALUE
+          - pattern: $EL.insertAdjacentHTML($POS, $VALUE)
+    metadata:
+      category: security
+      subcategory: [audit]
+      confidence: MEDIUM
+      cwe: ["CWE-79: Improper Neutralization of Input During Web Page Generation"]
+
+  - id: lj-execute-script-dynamic-func
+    languages: [javascript, typescript]
+    message: >-
+      scripting.executeScript with a non-literal func ($F). Only inline
+      functions may be injected; a variable means the injected code is decided
+      at runtime.
+    severity: WARNING
+    patterns:
+      - pattern: "$API.scripting.executeScript({..., func: $F, ...})"
+      - metavariable-regex:
+          metavariable: $F
+          regex: '^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z0-9_$]+)*$'
+    metadata:
+      category: security
+      subcategory: [audit]
+      confidence: MEDIUM
+      cwe: ["CWE-94: Improper Control of Generation of Code"]
+
+  - id: lj-manifest-war-all-urls
+    languages: [generic]
+    message: >-
+      web_accessible_resources reachable from <all_urls>: every site can probe
+      the extension's scripts and fingerprint the install. Keep only if the
+      injection design requires it.
+    severity: WARNING
+    paths:
+      include:
+        - manifest.json
+    pattern-regex: '"<all_urls>"'
+    metadata:
+      category: security
+      subcategory: [audit]
+      confidence: LOW
+
+  - id: lj-plain-http-endpoint
+    languages: [javascript, typescript]
+    message: >-
+      Plaintext HTTP endpoint in an extension that handles untrusted page text.
+    severity: WARNING
+    pattern: 'fetch("http://...")'
+    metadata:
+      category: security
+      subcategory: [vuln]
+      confidence: MEDIUM
+      cwe: ["CWE-319: Cleartext Transmission of Sensitive Information"]
+
+  - id: lj-persistent-storage-write
+    languages: [javascript, typescript]
+    message: >-
+      Persistent storage write. Confirm no scanned page text or secrets are
+      persisted.
+    severity: INFO
+    patterns:
+      - pattern-either:
+          - pattern: localStorage.setItem(...)
+          - pattern: sessionStorage.setItem(...)
+          - pattern: browser.storage.local.set(...)
+    metadata:
+      category: security
+      subcategory: [audit]
+      confidence: LOW

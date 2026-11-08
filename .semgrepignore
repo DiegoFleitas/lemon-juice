@@ -1,0 +1,14 @@
+# Benchmark harnesses: CLI utilities with heavy path joins; not extension runtime code
+bench/
+
+# Test fixtures are deliberately hostile content (decoys, hidden text, JWTs)
+__tests__/fixtures/
+
+# Build and test artifacts
+dist/
+test-results/
+playwright-report/
+coverage/
+
+# Rule definitions, not scan targets
+.opengrep/

@@ -20,13 +20,13 @@ It is not. Here is the measurement, and here is what the work is still good for.
 A 290-page sample of real agent-ingest text (Common Crawl plain-text extraction,
 29 files, 275 domains, deterministic seed), plus a frozen protocol:
 
-| Quantity | Value |
-| --- | --- |
-| Pages containing invisible characters | **11.7%** (34/290, 95% CI 8.5–15.9%) |
-| Of those, benign mechanisms (BOM, CJK zero-width, emoji selectors, word joiner) | 33 of 34 |
-| Pages the detector flagged at `suspicious` or worse | **0 of 290** (95% CI 0.0–1.3%) |
-| Verdicts | 93 clean, 197 `noise` |
-| Dominant finding | `mixed-script` (191/290) — i.e. "this page is not monolingual Latin" |
+| Quantity                                                                        | Value                                                                |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Pages containing invisible characters                                           | **11.7%** (34/290, 95% CI 8.5–15.9%)                                 |
+| Of those, benign mechanisms (BOM, CJK zero-width, emoji selectors, word joiner) | 33 of 34                                                             |
+| Pages the detector flagged at `suspicious` or worse                             | **0 of 290** (95% CI 0.0–1.3%)                                       |
+| Verdicts                                                                        | 93 clean, 197 `noise`                                                |
+| Dominant finding                                                                | `mixed-script` (191/290) — i.e. "this page is not monolingual Latin" |
 
 Concealment mechanisms are common on the web and almost always legitimate. The
 detector, keyed on those mechanisms, therefore either stays silent or reports that
@@ -41,14 +41,14 @@ Protocol, scripts and data: **[prompt-injection-base-rate](https://github.com/Di
    benign reasons cannot distinguish the attack that shares the mechanism.
 2. **Inverted surfaces.** The extension uniquely sees comments, attributes and
    CSS-hidden text — none of which reach a model through a human paste, the
-   extension's own use case. The surfaces that *do* reach a model through an
+   extension's own use case. The surfaces that _do_ reach a model through an
    agent fetch are the ones a page-side tool cannot watch.
 3. **Detection without a decision.** A warning that does not change the next
    action is a nag. Blocking was out of scope by design, and the harm case
    (unattended agent with tools) was never in scope at all.
 
 None of this makes prompt injection less real — it is OWASP LLM01 and
-EchoLeak-class bugs exist. It means a *mechanism* detector on the page is the
+EchoLeak-class bugs exist. It means a _mechanism_ detector on the page is the
 wrong instrument. The defence belongs in the agent: least privilege, egress
 control, treating all ingested content as data, human approval for side effects.
 
@@ -66,7 +66,7 @@ Months of work went into parts that outlive the product decision:
   attack patterns** (red-team training, CHAISH material), not as protection.
 - **`bench/`** — an evaluation harness with a synthetic 84-case concealment
   matrix, a 111-case garak-derived corpus, a 24-payload paraphrase axis and an
-  NVIDIA NeMo Guardrails cross-check. Reusable for evaluating *any* input filter.
+  NVIDIA NeMo Guardrails cross-check. Reusable for evaluating _any_ input filter.
 - **A negative lesson, documented:** an evasion-cost metric that reported "how
   many mutations to evade" and was actually reporting each case's starting
   verdict tier, plus a hyperparameter that swung the headline number by 2×. It
